@@ -2,12 +2,14 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Inventory عقاري اليوم</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory & Maps عقاري اليوم</title>
     <link class="program-favicon" rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/home.png">
     <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/512/home.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --main-blue: #1e3a8a; }
         .edit-animate { transition: all 0.2s ease; cursor: pointer; }
@@ -40,6 +42,7 @@
             #adminReportModal { position: absolute; left: 0; top: 0; width: 100%; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
             .no-print { display: none !important; }
         }
+        #clientMap { height: 250px; width: 100%; border-radius: 20px; border: 2px solid #e2e8f0; }
     </style>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -90,7 +93,22 @@
             return parseFloat(str.toString().replace(/,/g, '')) || 0;
         }
 
+        // فحص وضع رؤية العميل (Customer Link view) قبل تشغيل الصلاحيات
+        function checkClientView() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('view_unit')) {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('appSection').classList.add('hidden');
+                document.getElementById('clientViewSection').classList.remove('hidden');
+                loadClientUnitData(urlParams.get('view_unit'), urlParams);
+                return true;
+            }
+            return false;
+        }
+
         onAuthStateChanged(auth, async (user) => {
+            if (checkClientView()) return; // لو هو عميل أوقف نظام الدخول والتحكم تماماً
+
             if (user) {
                 loggedInUserDocId = user.uid;
                 const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -132,7 +150,6 @@
                 }
             });
             onSnapshot(collection(db, 'resale'), (snap) => { resaleStore = snap.docs.map(d => ({id: d.id, ...d.data()})); renderResale(); });
-            
             onSnapshot(collection(db, 'teams'), (snap) => {
                 teamsStore = snap.docs.map(d => ({id: d.id, ...d.data()}));
                 if(currentUserRole === 'admin') {
@@ -162,78 +179,61 @@
             onSnapshot(collection(db, 'users'), (snap) => { window.allUsersData = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUnifiedUserList(); if(currentUserRole === 'admin') window.renderTeamMembersList(); });
         }
 
+        async function loadClientUnitData(id, params) {
+            // كود جلب وعرض البيانات للعميل الفتح اللينك بشكل منفصل وسينمائي
+            const docSnap = await getDoc(doc(db, 'properties', id));
+            if (!docSnap.exists()) {
+                document.getElementById('clientViewSection').innerHTML = `<p class="text-center text-red-500 py-12 font-black">عذراً، هذا العرض العقاري غير متاح أو تم حذفه 🛑</p>`;
+                return;
+            }
+            const unit = docSnap.data();
+            document.getElementById('cli_code').innerText = unit.code;
+            document.getElementById('cli_area').innerText = unit.area;
+            document.getElementById('cli_size').innerText = unit.size + " متر مربع";
+            document.getElementById('cli_floor').innerText = unit.floor || '-';
+            document.getElementById('cli_finish').innerText = unit.finish || 'طوب أحمر';
+            
+            document.getElementById('cli_total').innerText = (params.get('tot') || Number(unit.price).toLocaleString('en-US')) + " ج.م";
+            document.getElementById('cli_down').innerText = (params.get('dwn') || "0") + " ج.م (" + (params.get('dpct') || "0") + "%)";
+            document.getElementById('cli_months').innerText = params.get('msh') || "0";
+            document.getElementById('cli_monthly').innerText = (params.get('mon') || "0") + " ج.م";
+
+            // عرض ألبوم صور المعاينة التفاعلي للعميل
+            const gallery = document.getElementById('clientImagesGallery');
+            gallery.innerHTML = '';
+            let hasImages = false;
+            if (unit.bImages) { unit.bImages.split(',').forEach(img => { if(img.trim()){ hasImages=true; gallery.innerHTML += `<img src="${img.trim()}" class="w-full h-48 object-cover rounded-2xl shadow-sm border"/>`; }}); }
+            if (unit.aptImages) { unit.aptImages.split(',').forEach(img => { if(img.trim()){ hasImages=true; gallery.innerHTML += `<img src="${img.trim()}" class="w-full h-48 object-cover rounded-2xl shadow-sm border"/>`; }}); }
+            if(!hasImages) gallery.innerHTML = `<p class="text-xs text-slate-400 italic text-center col-span-2">📸 صور المعاينة والواجهات متاحة بناءً على طلبكم عبر الواتساب.</p>`;
+
+            // بناء الخريطة الفورية للعميل
+            setTimeout(() => {
+                let lat = 29.9730, lng = 31.1150;
+                if (unit.coords) {
+                    const parts = unit.coords.split(',');
+                    if(parts.length === 2) { lat = parseFloat(parts[0]); lng = parseFloat(parts[1]); }
+                }
+                const cMap = L.map('clientMap').setView([lat, lng], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(cMap);
+                L.marker([lat, lng]).addTo(cMap).bindTooltip(unit.code, { permanent: true }).openTooltip();
+            }, 400);
+        }
+
         let submitAction = 'login';
         document.addEventListener('DOMContentLoaded', () => {
             const loginBtn = document.getElementById('loginBtn');
             const regBtn = document.getElementById('regBtn');
             if(loginBtn) loginBtn.addEventListener('click', () => { submitAction = 'login'; });
             if(regBtn) regBtn.addEventListener('click', () => { submitAction = 'register'; });
-            
-            const salesInput = document.getElementById('salesName');
-            if(salesInput) {
-                salesInput.addEventListener('input', () => {
-                    let names = salesInput.value.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
-                    const wrapper = document.getElementById('sharedPercentageWrapper');
-                    if(wrapper) {
-                        wrapper.style.display = (names.length === 2) ? 'block' : 'none';
-                    }
-                });
-            }
         });
 
         window.handleAuth = async (e) => {
             e.preventDefault();
             const email = document.getElementById('email').value.trim();
             const pass = document.getElementById('pass').value;
-            if(!email || !pass) { alert("برجاء ملء البيانات أولاً"); return; }
             try {
-                if (submitAction === 'login') {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, pass);
-                    alert("تم إنشاء الحساب وتسجيل الدخول بنجاح!");
-                }
-            } catch (error) {
-                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-                    alert("خطأ في الإيميل أو الباسورد يا فنان، راجع بياناتك.");
-                } else if (error.code === 'auth/email-already-in-use') {
-                    alert("الإيميل ده مسجل مسبقاً، سجل دخول بيه مباشرة.");
-                } else if (error.code === 'auth/weak-password') {
-                    alert("الباسورد ضعيف جداً، خليه 6 أرقام أو حروف على الأقل.");
-                } else {
-                    alert("حدث خطأ أثناء العملية: " + error.message);
-                }
-            }
-        };
-
-        const commKeywords = ['محل', 'مكتب', 'تجارى', 'ادارى', 'إداري', 'صيدلية', 'عيادة', 'بدروم'];
-
-        window.toggleSearchMode = () => {
-            const btn = document.getElementById('searchModeBtn');
-            const input = document.getElementById('searchBox');
-            if (searchMode === 'size') {
-                searchMode = 'price';
-                btn.innerText = 'البحث بالسعر 💰';
-                btn.className = "bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase";
-                input.placeholder = "🔍 ابحث بالسعر الحالي (تقريب 200 ألف ج)...";
-            } else {
-                searchMode = 'size';
-                btn.innerText = 'البحث بالمساحة 📐';
-                btn.className = "bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase";
-                input.placeholder = "🔍 ابحث بالمساحة الحالية (تقريب 10م)...";
-            }
-            renderTable();
-        };
-
-        window.toggleAvailableFilter = () => {
-            showOnlyAvailable = !showOnlyAvailable;
-            const btn = document.getElementById('availableFilterBtn');
-            if (showOnlyAvailable) {
-                btn.className = "bg-green-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase";
-            } else {
-                btn.className = "bg-white text-navy px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase";
-            }
-            renderTable();
+                if (submitAction === 'login') { await signInWithEmailAndPassword(auth, email, pass); }
+            } catch (error) { alert("خطأ في البيانات: " + error.message); }
         };
 
         window.renderTable = () => {
@@ -241,641 +241,35 @@
             if(!tbody) return;
             let htmlBuffer = '';
             const term = document.getElementById('searchBox').value.trim().toLowerCase();
-            if(document.getElementById('commToggleBtn')) {
-                document.getElementById('commToggleBtn').classList.toggle('hidden', activeTab === 'الكل' || activeTab === 'التجاري العام 🏢');
-            }
 
             let filtered = dataStore.filter(p => {
                 const matchAvailable = showOnlyAvailable ? p.status === 'متاح' : true;
                 if (!matchAvailable) return false;
-
-                const isComm = commKeywords.some(k => p.floor?.toLowerCase().includes(k));
-                if (activeTab === 'التجاري العام 🏢' && !isComm) return false;
-                if (activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢' && p.area !== activeTab) return false;
-                if (activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢' && showCommercialOnly !== isComm) return false;
-
+                if (activeTab !== 'الكل' && p.area !== activeTab) return false;
                 if (!term) return true;
-
-                const searchNum = parseFloat(term);
-                if (!isNaN(searchNum)) {
-                    if (searchMode === 'size') {
-                        const unitSize = parseFloat(p.size) || 0;
-                        return (unitSize >= searchNum - 10 && unitSize <= searchNum + 10);
-                    } else if (searchMode === 'price') {
-                        const unitPrice = parseFloat(p.price) || 0;
-                        return (unitPrice >= searchNum - 200000 && unitPrice <= searchNum + 200000);
-                    }
-                }
-
                 return (p.area?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term));
             });
 
-            filtered.sort((a, b) => (parseInt(a.floor) || 0) - (parseInt(b.floor) || 0));
-            
             filtered.forEach(item => {
-                const isComm = commKeywords.some(k => item.floor?.toLowerCase().includes(k));
-                const icon = isComm ? '🏢' : '🏠';
-                
                 let rawStatus = item.status || 'متاح';
-                let displayStatus = rawStatus;
-                
-                if (['متاح', 'متاح للبيع'].includes(rawStatus)) displayStatus = 'متاح';
-                else if (['تم الحجز', 'محجوز'].includes(rawStatus)) displayStatus = 'تم الحجز';
-                else if (['تم البيع', 'تعاقد'].includes(rawStatus)) displayStatus = 'تم البيع';
-
-                let statusCls = displayStatus === 'متاح' ? "bg-green-600 text-white" : displayStatus === 'تم الحجز' ? "bg-yellow-400 text-black shadow-sm" : "bg-red-600 text-white";
+                let statusCls = rawStatus === 'متاح' ? "bg-green-600 text-white" : "bg-red-600 text-white";
                 
                 htmlBuffer += `<tr class="border-b text-center text-sm bg-white hover:bg-blue-50 transition font-black">
-                    <td class="p-4">${icon}</td>
+                    <td class="p-4">🏠</td>
                     <td class="p-4 text-navy text-right font-black italic">${item.code}</td>
                     <td class="p-4">${item.area}</td>
-                    <td onclick="startEditFinish('${item.id}')" class="p-4 text-[10px] text-slate-400 italic edit-animate">${item.finish || 'طوب أحمر'}</td>
+                    <td class="p-4 text-[10px] text-slate-400 italic">${item.finish || 'طوب أحمر'}</td>
                     <td class="p-4 text-slate-600 font-black">${item.size}م / د ${item.floor || '-'}</td>
                     <td class="p-4 text-green-700 font-bold text-[10px]">${Number(item.unitPrice || 0).toLocaleString('en-US')}ج</td>
                     <td onclick="window.openCalcById('${item.id}')" class="p-4 font-black text-blue-800 cursor-pointer underline italic">${Number(item.price).toLocaleString('en-US')}ج</td>
-                    <td class="p-4"><span class="px-3 py-1 rounded-full text-[10px] ${statusCls}">${displayStatus}</span></td>
+                    <td class="p-4"><span class="px-3 py-1 rounded-full text-[10px] ${statusCls}">${rawStatus}</span></td>
                     <td class="p-4 flex items-center justify-center gap-2">
-                        ${currentUserRole === 'admin' ? `<button onclick="openEditPrice('${item.id}', ${item.price}, '${item.code}')">⚙️</button>
-                        <button onclick="transferToResale('${item.id}')" title="تحويل لريسيل">🔄</button>
-                        <button onclick="deleteProperty('${item.id}', '${item.code}')" class="text-red-500">🗑️</button>
-                        <select onchange="window.handleStatusChangeTrigger('${item.id}', this.value, '${item.code}')" class="border rounded text-[8px] p-1 font-black italic"><option disabled selected>حالة</option><option value="متاح">متاح</option><option value="تم الحجز">تم الحجز</option><option value="تم البيع">تم البيع</option></select>` : ''}
+                        ${currentUserRole === 'admin' ? `<button onclick="window.deleteProperty('${item.id}', '${item.code}')" class="text-red-500">🗑️</button>` : ''}
                         <button onclick="window.openCalcById('${item.id}')" class="bg-navy text-white px-2 py-1 rounded text-[10px] shadow-md uppercase italic font-black">احسب</button>
                     </td></tr>`;
             });
             tbody.innerHTML = htmlBuffer;
             renderTabs();
-        };
-
-        window.saveAgentNameSetup = async () => {
-            const name = document.getElementById('setupAgentNameInput').value.trim();
-            if(!name) { alert("أدخل اسمك الكريم أولاً يا فنان!"); return; }
-            await updateDoc(doc(db, 'users', loggedInUserDocId), { name: name });
-            window.currentAgentName = name;
-            document.getElementById('nameSetupModal').style.display = 'none';
-        };
-
-        window.handleStatusChangeTrigger = (id, value, code) => {
-            if (value === 'تم الحجز' || value === 'تم البيع') {
-                const propObj = dataStore.find(p => p.id === id);
-                const price = propObj ? (Number(propObj.price) || 0) : 0;
-                window.currentPendingStatus = { id, value, code, price };
-                
-                document.getElementById('statusDetailsModal').style.display = 'flex';
-                document.getElementById('buyerName').value = '';
-                document.getElementById('salesName').value = window.currentAgentName || '';
-                document.getElementById('customStatusDate').value = '';
-                document.getElementById('sharedFirstPct').value = '50'; 
-                document.getElementById('sharedPercentageWrapper').style.display = 'none';
-                
-                const commSourceWrapper = document.getElementById('commissionSourceWrapper');
-                if (commSourceWrapper) {
-                    commSourceWrapper.style.display = (value === 'تم البيع') ? 'block' : 'none';
-                }
-                document.getElementById('buyerName').focus();
-            } else {
-                updateDoc(doc(db,'properties',id),{status:value, salesName: '', buyerName: '', statusDate: '', teamName: '', commissionSource: '', salesComm: 0, tlComm: 0, sharedFirstPct: 50});
-                window.addLog(`تحديث ${code} لـ ${value}`);
-            }
-        };
-
-        window.saveStatusDetails = () => {
-            const buyer = document.getElementById('buyerName').value.trim();
-            const sales = document.getElementById('salesName').value.trim();
-            const customDate = document.getElementById('customStatusDate').value;
-            if(!buyer || !sales) { alert("برجاء إدخال اسم السيلز واسم المشتري يا باشا!"); return; }
-
-            const target = window.currentPendingStatus;
-            let yearMonth = customDate;
-            if(!yearMonth) {
-                const now = new Date();
-                yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-            }
-
-            const loggedInUserObj = window.allUsersData ? window.allUsersData.find(u => u.name === sales || u.email === auth.currentUser.email) : null;
-            let associatedTeamName = "بدون تيم";
-            if(loggedInUserObj && loggedInUserObj.teamId) {
-                const teamObj = teamsStore.find(t => t.id === loggedInUserObj.teamId);
-                if(teamObj) associatedTeamName = teamObj.name;
-            }
-
-            let source = "";
-            let salesComm = 0;
-            let tlComm = 0;
-
-            if (target.value === 'تم البيع') {
-                source = document.getElementById('commissionSource').value;
-                const millions = (target.price || 0) / 1000000;
-                if (source === 'personal') {
-                    salesComm = millions * 10000;
-                    tlComm = millions * 5000;
-                } else if (source === 'company') {
-                    salesComm = millions * 8000;
-                    tlComm = millions * 4000;
-                } else if (source === 'indirect') {
-                    salesComm = millions * 4000;
-                    tlComm = millions * 2000;
-                }
-            }
-
-            let rawPct = parseFloat(document.getElementById('sharedFirstPct').value);
-            if(isNaN(rawPct) || rawPct < 0 || rawPct > 100) rawPct = 50;
-
-            updateDoc(doc(db, 'properties', target.id), {
-                status: target.value,
-                buyerName: buyer,
-                salesName: sales,
-                statusDate: yearMonth,
-                teamName: associatedTeamName,
-                commissionSource: source,
-                salesComm: Math.round(salesComm),
-                tlComm: Math.round(tlComm),
-                sharedFirstPct: rawPct 
-            });
-
-            window.addLog(`تحديث ${target.code} لـ ${target.value} (بواسطة: ${sales} - ${associatedTeamName})`);
-            document.getElementById('statusDetailsModal').style.display = 'none';
-        };
-
-        window.resetPropertyStatusFromReport = (id, code) => {
-            if (confirm(`هل أنت متأكد من إلغاء العملية وإرجاع الكود ${code} متاحاً للبيع؟`)) {
-                updateDoc(doc(db, 'properties', id), {
-                    status: 'متاح',
-                    buyerName: '',
-                    salesName: '',
-                    statusDate: '',
-                    teamName: '',
-                    commissionSource: '',
-                    salesComm: 0,
-                    tlComm: 0,
-                    sharedFirstPct: 50
-                });
-                window.addLog(`إلغاء عملية وإرجاع كود ${code} متاحاً`);
-            }
-        };
-
-        window.populateMonthFilters = () => {
-            const filterContainer = document.getElementById('monthsCheckboxesContainer');
-            const archiveSelect = document.getElementById('archiveYearSelect');
-            if(!filterContainer || !archiveSelect) return;
-            
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonthStr = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-            let allMonths = new Set();
-            let yearsSet = new Set();
-
-            dataStore.forEach(p => { 
-                if(p.statusDate) {
-                    allMonths.add(p.statusDate);
-                    const fileYear = p.statusDate.split('-')[0];
-                    if(parseInt(fileYear) < currentYear) yearsSet.add(fileYear);
-                }
-            });
-
-            let selectHtml = `<option value="current">السنة الحالية (${currentYear})</option>`;
-            Array.from(yearsSet).sort().reverse().forEach(y => {
-                selectHtml += `<option value="${y}">أرشيف سنة ${y} 📁</option>`;
-            });
-            archiveSelect.innerHTML = selectHtml;
-            archiveSelect.value = selectedArchiveYear;
-
-            if (selectedArchiveYear === "current") {
-                document.getElementById('checkboxesWrapper').classList.remove('hidden');
-                let currentYearMonths = Array.from(allMonths).filter(m => m.startsWith(`${currentYear}-`));
-                if(!currentYearMonths.includes(currentMonthStr)) currentYearMonths.push(currentMonthStr);
-                currentYearMonths.sort().reverse();
-
-                if(selectedMonthsForReport.length === 0) selectedMonthsForReport = [currentMonthStr];
-
-                filterContainer.innerHTML = currentYearMonths.map(m => {
-                    const isChecked = selectedMonthsForReport.includes(m) ? 'checked' : '';
-                    return `<label class="flex items-center gap-1 bg-white border px-2 py-0.5 rounded-lg cursor-pointer hover:bg-slate-50 text-[11px] font-bold eng-num shadow-sm">
-                        <input type="checkbox" value="${m}" ${isChecked} onchange="window.handleMonthCheckboxChange(this)" class="rounded text-navy focus:ring-navy w-3 h-3">
-                        ${m}
-                    </label>`;
-                }).join('');
-            } else {
-                document.getElementById('checkboxesWrapper').classList.add('hidden');
-            }
-        };
-
-        window.handleArchiveYearChange = (select) => {
-            selectedArchiveYear = select.value;
-            selectedMonthsForReport = []; 
-            window.populateMonthFilters();
-            window.updateReportData();
-        };
-
-        window.handleMonthCheckboxChange = (checkbox) => {
-            if(checkbox.checked) {
-                if(!selectedMonthsForReport.includes(checkbox.value)) selectedMonthsForReport.push(checkbox.value);
-            } else {
-                selectedMonthsForReport = selectedMonthsForReport.filter(m => m !== checkbox.value);
-            }
-            window.updateReportData();
-        };
-
-        window.currentPendingSharedItem = null;
-
-        window.openSharedPctModalFromReport = (id, code, salesName, price) => {
-            let names = salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
-            if (names.length !== 2) return;
-
-            const item = dataStore.find(p => p.id === id);
-            let currentPct = item && item.sharedFirstPct !== undefined ? item.sharedFirstPct : 50;
-
-            window.currentPendingSharedItem = { id: id, code: code, names: names, price: price };
-            document.getElementById('sharedUnitCodeDisplay').innerText = code;
-            document.getElementById('sharedFirstAgentName').innerText = names[0];
-            document.getElementById('sharedSecondAgentName').innerText = names[1];
-            document.getElementById('promptAgentLabelName').innerText = names[0]; 
-            document.getElementById('cleanSharedPctInput').value = currentPct;
-            document.getElementById('cleanLeaderboardPromptModal').style.display = 'flex';
-        };
-
-        window.updateReportData = () => {
-            let soldCount = 0;
-            let reservedCount = 0;
-            let annualSoldCount = 0; 
-            
-            const now = new Date();
-            const currentYearPrefix = `${now.getFullYear()}-`; 
-
-            const reportTableBody = document.getElementById('reportItemsList');
-            if(!reportTableBody) return;
-            reportTableBody.innerHTML = '';
-
-            let salesVolumeStats = {};
-            let teamVolumeStats = {};
-
-            dataStore.forEach(p => {
-                if (p.statusDate && p.statusDate.startsWith(currentYearPrefix)) {
-                    if (p.status === 'تم البيع') annualSoldCount++;
-                }
-
-                let isMatch = false;
-                if (selectedArchiveYear === "current") {
-                    isMatch = selectedMonthsForReport.includes(p.statusDate);
-                } else {
-                    isMatch = p.statusDate && p.statusDate.startsWith(`${selectedArchiveYear}-`);
-                }
-
-                if (isMatch) {
-                    if (p.status === 'تم البيع') soldCount++;
-                    if (p.status === 'تم الحجز') reservedCount++;
-
-                    const displayTeamName = p.teamName ? p.teamName : "بدون تيم";
-                    const unitFullPrice = Number(p.price) || 0;
-                    let sharedActionBtn = "";
-                    
-                    if (p.status === 'تم البيع' && p.salesName) {
-                        let names = p.salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
-                        
-                        if (names.length === 2) {
-                            let fPct = p.sharedFirstPct !== undefined ? parseFloat(p.sharedFirstPct) : 50;
-                            let sPct = 100 - fPct;
-
-                            if (!salesVolumeStats[names[0]]) salesVolumeStats[names[0]] = 0;
-                            salesVolumeStats[names[0]] += unitFullPrice * (fPct / 100);
-
-                            if (!salesVolumeStats[names[1]]) salesVolumeStats[names[1]] = 0;
-                            salesVolumeStats[names[1]] += unitFullPrice * (sPct / 100);
-
-                            sharedActionBtn = `<button onclick="window.openSharedPctModalFromReport('${p.id}', '${p.code}', '${p.salesName}', ${unitFullPrice})" class="block mt-1 text-[9px] bg-navy text-white px-2 py-0.5 rounded shadow-sm font-extrabold hover:bg-slate-700 transition">نسبة الشراكة: ${fPct}/${sPct} ⚙️</button>`;
-                        } else {
-                            let priceWeight = names.length > 1 ? (unitFullPrice / names.length) : unitFullPrice;
-                            names.forEach(name => {
-                                if (!salesVolumeStats[name]) salesVolumeStats[name] = 0;
-                                salesVolumeStats[name] += priceWeight;
-                            });
-                        }
-
-                        if (displayTeamName) {
-                            if (!teamVolumeStats[displayTeamName]) teamVolumeStats[displayTeamName] = 0;
-                            teamVolumeStats[displayTeamName] += unitFullPrice; 
-                        }
-                    }
-
-                    let sourceBadge = "";
-                    if (p.status === 'تم البيع' && p.commissionSource) {
-                        const srcMap = { 'personal': 'شخصي', 'company': 'شركة', 'indirect': 'غير مباشر' };
-                        sourceBadge = `<span class="block text-[10px] text-slate-500 font-extrabold mt-1 bg-slate-100 rounded px-1 py-0.5 inline-block border border-slate-200">📍 المصدر: ${srcMap[p.commissionSource] || p.commissionSource.toUpperCase()}</span>`;
-                    }
-
-                    const commText = p.status === 'تم البيع' && p.commissionSource ? 
-                        `<div class="space-y-0.5 eng-num font-black">
-                            <span class="block text-[10px] text-emerald-700">سيلز: ${formatMoney(p.salesComm || 0)}ج</span>
-                            <span class="block text-[10px] text-indigo-700">قائد: ${formatMoney(p.tlComm || 0)}ج</span>
-                         </div>` : '-';
-
-                    const displayFullPrice = p.price ? `${Number(p.price).toLocaleString('en-US')}ج` : 'غير مححدد';
-
-                    let statusAction = '';
-                    if (p.status === 'تم الحجز') {
-                        statusAction = `<button onclick="window.handleStatusChangeTrigger('${p.id}', 'تم البيع', '${p.code}')" class="block mt-1.5 text-[9px] bg-green-500 text-white px-2 py-1 rounded shadow-sm font-extrabold hover:bg-green-600 transition w-full">تأكيد البيع ✔️</button>`;
-                    }
-
-                    reportTableBody.innerHTML += `<tr class="border-b text-center text-xs text-slate-700 hover:bg-slate-50">
-                        <td class="p-3 font-bold text-navy">
-                            <span>${p.code || '-'}</span>
-                            <span onclick="openEditPrice('${p.id}', ${p.price}, '${p.code}')" class="block text-[10px] text-blue-700 font-extrabold mt-0.5 eng-num bg-blue-50/70 border border-blue-100 rounded py-0.5 px-1 cursor-pointer hover:bg-blue-200 transition" title="تعديل السعر">💰 ${displayFullPrice} ✏️</span>
-                        </td>
-                        <td class="p-3">${p.area || '-'}</td>
-                        <td class="p-3">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-black block ${p.status === 'تم البيع' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${p.status}</span>
-                            ${statusAction}
-                            ${sourceBadge}
-                        </td>
-                        <td class="p-3 font-bold">
-                            <span>${p.salesName || '-'}</span>
-                            <span class="text-[9px] text-slate-400 block font-normal">(${displayTeamName})</span>
-                            ${sharedActionBtn}
-                            <button onclick="window.openEditTeamModal('${p.id}', '${p.code}', '${p.salesName}')" class="block mt-1 text-[9px] bg-slate-600 text-white px-2 py-0.5 rounded shadow-sm font-extrabold hover:bg-slate-800 transition">تعديل التيم 👥</button>
-                        </td>
-                        <td class="p-3">${p.buyerName || '-'}</td>
-                        <td class="p-3 text-[10px] eng-num text-slate-400 font-bold">${p.statusDate || '-'}</td>
-                        <td class="p-3 font-bold text-slate-800">${commText}</td>
-                        <td class="p-3 no-print"><button onclick="window.resetPropertyStatusFromReport('${p.id}', '${p.code}')" class="text-orange-600 hover:text-red-600 transition text-xs font-bold">🔄 تراجع</button></td>
-                    </tr>`;
-                }
-            });
-
-            document.getElementById('reportSoldCount').innerText = soldCount;
-            document.getElementById('reportReservedCount').innerText = reservedCount;
-            document.getElementById('reportAnnualSoldCount').innerText = annualSoldCount;
-            
-            const titleSuffix = selectedArchiveYear === "current" ? "للأشهر المحددة" : `لسنة ${selectedArchiveYear}`;
-            document.getElementById('soldCardTitle').innerText = `المباع ${titleSuffix}`;
-            document.getElementById('reservedCardTitle').innerText = `المحجوز ${titleSuffix}`;
-
-            renderTopPerformersWidgets(salesVolumeStats, teamVolumeStats);
-        };
-
-        window.openEditTeamModal = (propId, propCode, salesName) => {
-            window.currentEditingProp = { id: propId, code: propCode };
-            const modal = document.getElementById('editTeamModal');
-            const select = document.getElementById('teamSelectionList');
-            const salesContainer = document.getElementById('teamSalesSelectContainer');
-            
-            let names = salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
-            
-            if (names.length > 1) {
-                salesContainer.style.display = 'block';
-                let options = names.map(n => `<option value="${n}">${n}</option>`).join('');
-                document.getElementById('teamSalesSelect').innerHTML = options;
-            } else {
-                salesContainer.style.display = 'none';
-            }
-
-            select.innerHTML = '<option value="بدون تيم">بدون تيم</option>' + 
-                teamsStore.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
-            modal.style.display = 'flex';
-        };
-
-        window.savePropTeamChange = async () => {
-            const newTeam = document.getElementById('teamSelectionList').value;
-            const targetSales = document.getElementById('teamSalesSelect').value;
-            
-            if (window.currentEditingProp) {
-                await updateDoc(doc(db, 'properties', window.currentEditingProp.id), {
-                    teamName: newTeam,
-                    ...(document.getElementById('teamSalesSelectContainer').style.display !== 'none' ? { teamTargetSales: targetSales } : {})
-                });
-                document.getElementById('editTeamModal').style.display = 'none';
-                window.updateReportData();
-                window.addLog(`تعديل تيم الوحدة ${window.currentEditingProp.code} لـ ${newTeam}`);
-            }
-        };
-
-        window.saveCleanSharedPercentage = async () => {
-            let pctInput = parseFloat(document.getElementById('cleanSharedPctInput').value);
-            if (isNaN(pctInput) || pctInput < 0 || pctInput > 100) pctInput = 50;
-
-            if (window.currentPendingSharedItem) {
-                await updateDoc(doc(db, 'properties', window.currentPendingSharedItem.id), {
-                    sharedFirstPct: pctInput
-                });
-                document.getElementById('cleanLeaderboardPromptModal').style.display = 'none';
-                document.getElementById('cleanSharedPctInput').value = '50';
-                window.currentPendingSharedItem = null;
-                window.updateReportData();
-            }
-        };
-
-        window.savePriceByAdmin = async () => {
-            const val = unformatMoney(document.getElementById('adminPriceInput').value);
-            if (val > 0 && currentEditingPropId) {
-                await updateDoc(doc(db, 'properties', currentEditingPropId), { price: val });
-                document.getElementById('adminPriceModal').style.display = 'none';
-                window.addLog(`تعديل سعر الوحدة ${currentEditingPropId} لـ ${val}`);
-                if(document.getElementById('adminReportModal').style.display === 'flex') {
-                    window.updateReportData();
-                }
-            }
-        };
-
-        window.openEditPrice = (id, p, c) => {
-            currentEditingPropId = id;
-            document.getElementById('adminPriceModal').style.display = 'flex';
-            const input = document.getElementById('adminPriceInput');
-            input.value = formatMoney(p);
-            input.focus();
-            input.oninput = (e) => {
-                let val = cleanToEngNum(e.target.value);
-                e.target.value = formatMoney(val);
-            };
-        };
-
-        function renderTopPerformersWidgets(salesVolumeStats, teamVolumeStats) {
-            const topSalesContainer = document.getElementById('topSalesOutput');
-            const topTeamContainer = document.getElementById('topTeamOutput');
-            
-            if (topSalesContainer) {
-                let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume).slice(0, 3);
-                
-                if (sortedSales.length === 0) {
-                    topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
-                } else {
-                    topSalesContainer.innerHTML = sortedSales.map((s, idx) => {
-                        let medals = ['🥇  المركز الأول', '🥈 المركز الثاني', '🥉 المركز الثالث'];
-                        return `<div class="bg-slate-50 border p-3 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-1 shadow-sm">
-                            <span class="font-extrabold text-navy">${medals[idx]}: <span class="text-slate-800 underline underline-offset-2">${s.name}</span></span>
-                            <span class="text-emerald-700 eng-num font-black bg-white border px-3 py-1 rounded-xl shadow-inner text-xs">${formatMoney(s.volume)} ج</span>
-                        </div>`;
-                    }).join('');
-                }
-            }
-
-            if (topTeamContainer) {
-                let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume);
-                
-                if (sortedTeams.length === 0) {
-                    topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
-                } else {
-                    let topTeam = sortedTeams[0];
-                    topTeamContainer.innerHTML = `<div class="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-2 shadow-sm">
-                        <span class="font-black text-blue-900 text-sm">🏆 التيم المتصدر: ${topTeam.name}</span>
-                        <span class="eng-num bg-white border border-blue-100 font-black px-4 py-1.5 rounded-xl shadow-sm text-navy text-xs">${formatMoney(topTeam.volume)} ج</span>
-                    </div>`;
-                }
-            }
-        }
-
-        window.toggleLeaderboardModal = () => {
-            const m = document.getElementById('leaderboardModal');
-            m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'flex' : 'none';
-        };
-
-        window.createNewTeam = async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('newTeamNameInput');
-            const name = input.value.trim();
-            if(!name) return;
-            await addDoc(collection(db, 'teams'), { name: name, time: serverTimestamp() });
-            input.value = '';
-            window.addLog(`إنشاء تيم جديد باسم: ${name}`);
-        };
-
-        window.deleteTeam = async (id, name) => {
-            if(confirm(`حذف تيم "${name}" نهائياً؟`)) {
-                await deleteDoc(doc(doc(db, 'teams', id)));
-                if(currentActiveReportTeamId === id) currentActiveReportTeamId = "";
-                window.addLog(`حذف تيم: ${name}`);
-            }
-        };
-
-        window.updateUserTeam = async (userId, teamId) => {
-            await updateDoc(doc(db, 'users', userId), { teamId: teamId });
-            window.addLog("تحديث تيم لموظف");
-        };
-
-        window.changeRole = async (id, r) => await updateDoc(doc(db, 'users', id), { role: r === 'admin' ? 'sales' : 'admin' });
-        window.kickUser = (uid) => remove(ref(rtdb, 'status/' + uid));
-        window.deleteUser = async (id) => { if(confirm('حذف؟')) await deleteDoc(doc(db, 'users', id)); };
-
-        window.changeAgentNameByAdmin = async (userId, oldName) => {
-            const newName = prompt("تعديل اسم الموظف العربي:", oldName || "");
-            if (newName !== null) {
-                await updateDoc(doc(db, 'users', userId), { name: newName.trim() });
-                window.addLog(`تعديل اسم موظف إلى ${newName}`);
-            }
-        };
-
-        window.setActiveReportTeam = (teamId) => {
-            currentActiveReportTeamId = teamId;
-            const btns = document.querySelectorAll('.team-list-item');
-            btns.forEach(b => b.classList.remove('bg-blue-50', 'border-navy'));
-            if(teamId) {
-                document.getElementById(`team-item-${teamId}`)?.classList.add('bg-blue-50', 'border-navy');
-            }
-            window.renderTeamMembersList();
-        };
-
-        window.renderTeamsManagementList = () => {
-            const container = document.getElementById('adminTeamsManagementList');
-            if(!container) return;
-            if(teamsStore.length === 0) {
-                container.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-3 italic">لا يوجد فرق مائلة.</p>`;
-                return;
-            }
-            container.innerHTML = teamsStore.map(t => {
-                const isActive = currentActiveReportTeamId === t.id ? 'bg-blue-50 border-navy' : 'border-slate-100';
-                return `<div id="team-item-${t.id}" onclick="window.setActiveReportTeam('${t.id}')" class="team-list-item flex items-center justify-between bg-white p-3 border-2 rounded-2xl mb-1.5 shadow-sm text-xs font-bold text-navy cursor-pointer hover:bg-slate-50 transition ${isActive}">
-                    <span class="flex items-center gap-1.5">👥 ${t.name}</span>
-                    <button onclick="event.stopPropagation(); window.deleteTeam('${t.id}', '${t.name}')" class="text-slate-300 hover:text-red-500 transition text-sm">🗑️</button>
-                </div>`;
-            }).join('');
-        };
-
-        window.renderTeamMembersList = () => {
-            const container = document.getElementById('teamMembersOutputList');
-            if(!container) return;
-            if(!currentActiveReportTeamId) {
-                container.innerHTML = `<div class="flex flex-col items-center justify-center py-8 text-slate-400 text-center text-xs font-bold italic gap-1">
-                    <span>👈 اضغط على اسم أي تيم من القائمة</span>
-                    <span>لمشاهدة الأعضاء المنضمين إليه هنا.</span>
-                </div>`;
-                return;
-            }
-            const activeTeam = teamsStore.find(t => t.id === currentActiveReportTeamId);
-            const members = window.allUsersData ? window.allUsersData.filter(u => u.teamId === currentActiveReportTeamId) : [];
-            
-            let html = `<p class="text-[11px] font-black mb-3 text-blue-900 border-b pb-1.5 uppercase italic">المتواجدين جوه (${activeTeam ? activeTeam.name : 'التيم'}):</p><div class="space-y-1.5 max-h-56 overflow-y-auto pr-1">`;
-            if(members.length === 0) {
-                html += `<p class="text-[11px] text-amber-600 text-center py-4 italic">التيم ده فاضي حالياً، وزّع فيه موظفين من القائمة بجانبه 🛑</p>`;
-            } else {
-                html += members.map(m => {
-                    const display = m.name ? m.name : "لم يكتب اسمه";
-                    return `<div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold text-slate-700 flex justify-between items-center shadow-sm">
-                        <span class="truncate pl-2">👤 ${display}</span>
-                        <span class="bg-blue-100 text-navy text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0">${m.role}</span>
-                    </div>`;
-                }).join('');
-            }
-            html += `</div>`;
-            container.innerHTML = html;
-        };
-
-        window.renderUnifiedUserList = () => { 
-            const list = document.getElementById('unifiedUserList'); 
-            if(!list || !window.allUsersData) return; 
-            list.innerHTML = ''; 
-            window.allUsersData.forEach(u => { 
-                const onlineKey = Object.keys(onlineUsers).find(key => onlineUsers[key].email === u.email); 
-                
-                let teamOptions = `<option value="">بدون تيم ❌</option>`;
-                teamsStore.forEach(t => {
-                    const isSel = u.teamId === t.id ? 'selected' : '';
-                    teamOptions += `<option value="${t.id}" ${isSel}>${t.name}</option>`;
-                });
-
-                const finalName = u.name ? u.name : "اسم غير مسجل باللغة العربية";
-
-                list.innerHTML += `<div class="bg-white p-4 rounded-2xl border border-slate-200 mb-2 flex flex-col gap-3 shadow-sm font-black transition hover:border-slate-300">
-                    <div class="flex items-center justify-between border-b pb-2">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                            <span class="w-3 h-3 ${onlineKey ? 'bg-green-500 animate-pulse' : 'bg-slate-300'} rounded-full shrink-0"></span>
-                            <div class="min-w-0">
-                                <span onclick="window.changeAgentNameByAdmin('${u.id}', '${u.name || ''}')" class="text-blue-900 font-extrabold block text-sm underline cursor-pointer hover:text-blue-700">👤 ${finalName}</span>
-                                <span class="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-md font-black uppercase">${u.role}</span>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-1 shrink-0">
-                            ${onlineKey ? `<button onclick="kickUser('${onlineKey}')" class="bg-orange-500 text-white text-[9px] px-2 py-1 rounded-lg font-black shadow-sm transition">طرد</button>` : ''}
-                            <button onclick="deleteUser('${u.id}')" class="p-1.5 bg-red-50 text-red-600 rounded-lg text-xs" title="حذف">🗑️</button>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between gap-4 pt-1">
-                        <div class="flex items-center gap-1.5 w-full">
-                            <span class="text-[10px] text-slate-400 shrink-0">تعديل التيم:</span>
-                            <select onchange="window.updateUserTeam('${u.id}', this.value)" class="w-full border rounded-xl text-[11px] p-2 bg-slate-50 font-black outline-none cursor-pointer focus:border-navy">
-                                ${teamOptions}
-                            </select>
-                        </div>
-                        <button onclick="changeRole('${u.id}', '${u.role}')" class="px-3 py-2 bg-blue-50 text-blue-700 font-bold rounded-xl text-xs shrink-0 flex items-center gap-1">🛡️ رتبة</button>
-                    </div>
-                </div>`; 
-            }); 
-        };
-
-        window.importExcel = (e) => {
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const j = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).SheetNames[0]]);
-                for(let i of j) {
-                    const p = unformatMoney(cleanToEngNum(i.price || i.Price || i['السعر'] || i['price '] || 0));
-                    const s = unformatMoney(cleanToEngNum(i.size || i.Size || i['المساحة'] || i['size '] || 0));
-                    const up = unformatMoney(cleanToEngNum(i.unitPrice || i.UnitPrice || i['سعر المتر'] || i['unitPrice '] || 0));
-                    const mapLink = String(i.mapLink || i['اللوكيشن'] || i['الموقع'] || '');
-                    await addDoc(collection(db, 'properties'), { code: String(i.code||i.Code||i['الكود']||''), area: String(i.area||i.Area||i['العمارة']||''), size: s, floor: String(i.floor||i.Floor||i['الدور']||'-'), price: p, unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0), finish: String(i.finish||i.Finish||i['التشطيب']||'طوب أحمر'), mapLink: mapLink, status: 'متاح', time: serverTimestamp(), sharedFirstPct: 50 });
-                }
-                alert("تم الاستيراد بنجاح");
-                location.reload();
-            };
-            reader.readAsArrayBuffer(e.target.files[0]);
         };
 
         window.addProp = async (e) => {
@@ -886,238 +280,52 @@
             const floor = document.getElementById('f').value.trim();
             const finish = document.getElementById('finishType').value;
             const price = Number(document.getElementById('p').value) || 0;
-            const unitPrice = Number(document.getElementById('up').value) || 0;
-            const mapLink = document.getElementById('m_link').value.trim();
-
-            if(!code || !area || !size) { alert("أدخل بيانات الكود، العمارة، والمساحة كحد أدنى!"); return; }
+            const coords = document.getElementById('m_coords').value.trim();
+            const bImages = document.getElementById('m_b_images').value.trim();
+            const aptImages = document.getElementById('m_apt_images').value.trim();
 
             try {
                 await addDoc(collection(db, 'properties'), {
-                    code: code,
-                    area: area,
-                    size: size,
-                    floor: floor || '-',
-                    finish: finish,
-                    price: price,
-                    unitPrice: unitPrice > 0 ? unitPrice : (size > 0 ? Math.round(price / size) : 0),
-                    mapLink: mapLink,
-                    status: 'متاح',
-                    time: serverTimestamp(),
-                    sharedFirstPct: 50
+                    code, area, size, floor, finish, price, coords, bImages, aptImages,
+                    status: 'متاح', time: serverTimestamp()
                 });
-                alert("تم إضافة الوحدة العقارية الجديدة بنجاح! 🎉");
+                alert("تم إضافة الوحدة وعناوين خرائط المعاينة بنجاح! 🎉");
                 e.target.reset();
-            } catch (error) {
-                alert("حدث خطأ أثناء حفظ الوحدة: " + error.message);
-            }
-        };
-
-        window.autoCalcPrice = (mode) => {
-            const size = parseFloat(document.getElementById('s').value) || 0;
-            const totalInput = document.getElementById('p');
-            const unitInput = document.getElementById('up');
-
-            if (size <= 0) return;
-
-            if (mode === 'unit') {
-                const unitPrice = parseFloat(unitInput.value) || 0;
-                if (unitPrice > 0) totalInput.value = Math.round(unitPrice * size);
-            } else {
-                const totalPrice = parseFloat(totalInput.value) || 0;
-                if (totalPrice > 0) unitInput.value = Math.round(totalPrice / size);
-            }
-        };
-
-        window.addResale = async (e) => {
-            e.preventDefault();
-            const code = document.getElementById('rc').value.trim();
-            const area = document.getElementById('ra').value.trim();
-            const size = Number(document.getElementById('rs').value) || 0;
-            const price = Number(document.getElementById('rp').value) || 0;
-            const finish = document.getElementById('rf').value;
-            
-            if(!code || !area) { alert("أدخل بيانات وحدة الريسيل الأساسية أولاً"); return; }
-            
-            await addDoc(collection(db, 'resale'), {
-                code: code,
-                area: area,
-                size: size,
-                price: price,
-                finish: finish,
-                time: serverTimestamp()
-            });
-            alert("تم حفظ وحدة الريسيل بنجاح 🔄");
-            e.target.reset();
-        };
-
-        window.transferToResale = async (id) => {
-            const item = dataStore.find(p => p.id === id);
-            if(item && confirm(`تحويل الوحدة كود ${item.code} إلى قسم الريسيل?`)) {
-                await addDoc(collection(db, 'resale'), {
-                    code: item.code || '',
-                    area: item.area || '',
-                    size: item.size || 0,
-                    price: item.price || 0,
-                    finish: item.finish || 'طوب أحمر',
-                    time: serverTimestamp()
-                });
-                alert('تم التحويل للريسيل بنجاح 🔄');
-            }
-        };
-
-        window.addPreviousMonthManual = () => {
-            const mStr = prompt("أدخل الشهر والسنة المراد إضافتهما للفلتر بصيغة (YYYY-MM) مثل 2025-12:");
-            if (mStr && /^\d{4}-\d{2}$/.test(mStr)) {
-                selectedMonthsForReport.push(mStr);
-                window.populateMonthFilters();
-                window.updateReportData();
-            } else if(mStr) {
-                alert("صيغة غير صحيحة، برجاء الالتزام بالمثال (2025-12).");
-            }
-        };
-
-        window.renderResale = () => { document.getElementById('resaleItemsList').innerHTML = resaleStore.map(item => `<div class="bg-white p-4 rounded-[2rem] border-r-[12px] border-navy shadow-md mb-3 flex justify-between items-center border border-slate-100 text-right font-black italic"><div class="flex-1 font-black"><div><span class="text-navy text-xl font-black italic">كود: ${item.code}</span><span class="bg-slate-400 text-white text-[10px] px-4 py-1 rounded-full uppercase italic ml-2">${item.finish}</span></div><p class="text-xs text-slate-500 mt-1">📍 ${item.area} | 📐 ${item.size}م</p></div><div class="flex items-center gap-3"><div class="text-navy font-black text-lg">${Number(item.price).toLocaleString('en-US')}ج</div><button onclick="window.openCalc(${item.price}, '${item.code}')" class="bg-navy text-white px-8 py-2 rounded-2xl shadow-md uppercase italic font-black">احسب</button>${currentUserRole === 'admin' ? `<button onclick="deleteResale('${item.id}')" class="text-red-500 text-xs font-black">حذف</button>` : ''}</div></div>`).join(''); };
-        window.deleteResale = async (id) => { if(confirm('حذف وحدة الريسيل نهائياً؟')) await deleteDoc(doc(db,'resale',id)); };
-        window.logout = () => signOut(auth).then(() => { location.reload(); });
-
-        window.tabDragStart = (e, i) => e.dataTransfer.setData('idx', i);
-        window.tabDrop = async (e, to) => { if(currentUserRole !== 'admin') return; const from = e.dataTransfer.getData('idx'); const allB = [...new Set(dataStore.map(i => i.area))]; let curO = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!curO.includes(b)) curO.push(b); }); const [moved] = curO.splice(from, 1); curO.splice(to, 0, moved); buildingOrder = curO; await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder }); };
-        window.startEditFinish = (id) => { if(currentUserRole==='admin'){ window.curId=id; document.getElementById('finishEditModal').style.display='flex'; } };
-        window.saveFinishChange = (v) => { updateDoc(doc(db,'properties',window.curId),{finish:v}); document.getElementById('finishEditModal').style.display='none'; window.addLog("تعديل تشطيب"); };
-        window.addLog = async (m) => await addDoc(collection(db,'notifications'),{message:m, time:serverTimestamp()});
-        
-        window.toggleAdminReportModal = () => {
-            const m = document.getElementById('adminReportModal');
-            m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'flex' : 'none';
-            if(m.style.display === 'flex') {
-                window.populateMonthFilters();
-                window.updateReportData();
-            }
-        };
-
-        window.printReport = () => { window.print(); };
-
-        window.runCalc = (trigger) => {
-            const totalInput = document.getElementById('m_total');
-            const downInput = document.getElementById('m_down');
-            const downPctInput = document.getElementById('m_down_pct');
-            const dAmountInput = document.getElementById('m_d_amount');
-            const dPctInput = document.getElementById('m_d_pct');
-            const monthsInput = document.getElementById('m_months');
-            const monthlyInput = document.getElementById('res_monthly_input');
-            const resPctVal = document.getElementById('res_pct_val');
-
-            let total = unformatMoney(cleanToEngNum(totalInput.value));
-            let down = unformatMoney(cleanToEngNum(downInput.value));
-            let downPct = parseFloat(cleanToEngNum(downPctInput.value)) || 0;
-            let dAmount = unformatMoney(cleanToEngNum(dAmountInput.value));
-            let dPct = parseFloat(cleanToEngNum(dPctInput.value)) || 0;
-            let months = parseInt(cleanToEngNum(monthsInput.value)) || 0;
-            let monthly = unformatMoney(cleanToEngNum(monthlyInput.value));
-
-            if (trigger === 'price') {
-                if (downPct > 0) down = total * (downPct / 100);
-                if (dPct > 0) dAmount = total * (dPct / 100);
-            } else if (trigger === 'pct_input') {
-                down = total * (downPct / 100);
-            } else if (trigger === 'amount_input') {
-                downPct = total > 0 ? (down / total) * 100 : 0;
-            } else if (trigger === 'd_pct') {
-                dAmount = total * (dPct / 100);
-            } else if (trigger === 'd_amount') {
-                dPct = total > 0 ? (dAmount / total) * 100 : 0;
-            }
-
-            let rem = total - down - dAmount;
-            if (rem < 0) rem = 0;
-
-            if (trigger === 'output_edit') {
-                if (monthly > 0 && rem > 0) {
-                    months = Math.ceil(rem / monthly);
-                    monthsInput.value = months;
-                }
-            } else {
-                if (months > 0) {
-                    monthly = rem / months;
-                } else {
-                    monthly = 0;
-                }
-            }
-
-            if (trigger !== 'amount_input') downInput.value = down > 0 ? formatMoney(down) : '';
-            if (trigger !== 'pct_input') downPctInput.value = downPct > 0 ? downPct.toFixed(1).replace('.0', '') : '';
-            if (trigger !== 'd_amount') dAmountInput.value = dAmount > 0 ? formatMoney(dAmount) : '';
-            if (trigger !== 'd_pct') dPctInput.value = dPct > 0 ? dPct.toFixed(1).replace('.0', '') : '';
-            if (trigger !== 'output_edit') monthlyInput.value = monthly > 0 ? formatMoney(monthly) : '';
-
-            let totalPct = downPct + dPct;
-            if (resPctVal) {
-                resPctVal.innerText = totalPct > 0 ? `(إجمالي المقدم والدفعات: ${totalPct.toFixed(1).replace('.0', '')}%)` : '';
-            }
-        };
-
-        window.renderTabs = () => { const container = document.getElementById('buildingTabs'); if(!container) return; const allB = [...new Set(dataStore.map(i => i.area))]; let sorted = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!sorted.includes(b)) sorted.push(b); }); let html = `<button onclick="setTab('الكل')" class="tab-btn ${activeTab === 'الكل' ? 'active' : ''}">الكل</button>`; html += sorted.map((b, idx) => `<button draggable="true" ondragstart="window.tabDragStart(event, ${idx})" ondragover="event.preventDefault()" ondrop="window.tabDrop(event, ${idx})" onclick="setTab('${b}')" class="tab-btn ${activeTab === b ? 'active' : ''}">${b}</button>`).join(''); html += `<button onclick="setTab('التجاري العام 🏢')" class="tab-btn ${activeTab === 'التجاري العام 🏢' ? 'active' : ''}" style="${activeTab === 'التجاري العام 🏢' ? '' : 'background:#334155;color:white;'}">التجاري العام 🏢</button>`; container.innerHTML = html; };
-        
-        window.openCalc = (p, c) => { 
-            window.currentCalcUnitData = { code: c, area: 'وحدة عامة', size: '-', floor: '-', finish: '-', mapLink: '' };
-            document.getElementById('calcModal').style.display='flex'; 
-            document.getElementById('m_code').innerText=c; 
-            document.getElementById('m_total').value = formatMoney(p); 
-            document.getElementById('m_down').value='';
-            document.getElementById('m_down_pct').value='';
-            document.getElementById('m_d_amount').value='';
-            document.getElementById('m_d_pct').value='';
-            document.getElementById('m_months').value='';
-            document.getElementById('res_monthly_input').value='';
-            window.runCalc('price'); 
+            } catch (error) { alert("حدث خطأ: " + error.message); }
         };
 
         window.openCalcById = (id) => {
             const unit = dataStore.find(p => p.id === id);
             if (!unit) return;
-            window.currentCalcUnitData = unit; // بنحفظ البيانات هنا علشان نستخدمها في توليد العرض للعميل تلقائياً
-            document.getElementById('calcModal').style.display='flex'; 
-            document.getElementById('m_code').innerText=unit.code; 
+            window.currentCalcUnitData = unit;
+            document.getElementById('calcModal').style.display = 'flex'; 
+            document.getElementById('m_code').innerText = unit.code; 
             document.getElementById('m_total').value = formatMoney(unit.price); 
-            document.getElementById('m_down').value='';
-            document.getElementById('m_down_pct').value='';
-            document.getElementById('m_d_amount').value='';
-            document.getElementById('m_d_pct').value='';
-            document.getElementById('m_months').value='';
-            document.getElementById('res_monthly_input').value='';
             window.runCalc('price');
         };
 
-        window.generateClientOffer = () => {
+        window.generateClientOfferLink = () => {
             const unit = window.currentCalcUnitData;
             if(!unit) return;
 
             const total = document.getElementById('m_total').value;
             const down = document.getElementById('m_down').value || '0';
             const downPct = document.getElementById('m_down_pct').value || '0';
-            const dAmount = document.getElementById('m_d_amount').value || '0';
             const months = document.getElementById('m_months').value || '0';
             const monthly = document.getElementById('res_monthly_input').value || '0';
 
-            let offerText = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة:\n\n`;
-            offerText += `📌 الكود: ${unit.code}\n`;
-            offerText += `📍 العمارة/المنطقة: ${unit.area}\n`;
-            offerText += `📐 المساحة: ${unit.size} متر\n`;
-            offerText += `🏢 الدور: ${unit.floor || '-'}\n`;
-            offerText += `✨ التشطيب: ${unit.finish || 'طوب أحمر'}\n\n`;
-            offerText += `💰 السعر الإجمالي: ${total} جنيهاً\n`;
-            offerText += `💵 المقدم: ${down} ج (${downPct}%)\n`;
-            if (unformatMoney(dAmount) > 0) offerText += `📉 إجمالي الدفعات الإضافية: ${dAmount} ج\n`;
-            offerText += `📅 نظام السداد: قسط شهري بقيمة (${monthly} ج) على ${months} شهر.\n\n`;
-            
-            if (unit.mapLink) {
-                offerText += `📍 موقع العمارة على جوجل ماب بدقة:\n${unit.mapLink}\n\n`;
-            } else {
-                offerText += `📍 موقع حدائق الأهرام (سيتم إرسال اللوكيشن الدقيق للعمارة لاحقاً)\n`;
-            }
-            offerText += `شركة عقاري اليوم تسعد بخدمتكم دائماً 🏢✨`;
+            // توليد الرابط الذكي المتكامل للعميل
+            const baseUrl = window.location.origin + window.location.pathname;
+            const generatedOfferUrl = `${baseUrl}?view_unit=${unit.id}&tot=${encodeURIComponent(total)}&dwn=${encodeURIComponent(down)}&dpct=${encodeURIComponent(downPct)}&msh=${encodeURIComponent(months)}&mon=${encodeURIComponent(monthly)}`;
 
-            document.getElementById('offerTextArea').value = offerText;
+            let messageText = `أهلاً بك يا فندم بناءً على طلبك، ده كارت المعاينة الرقمي المخصص التفاعلي لوحدتك العقارية المميزة ✨:\n\n`;
+            messageText += `🏢 كود الشقة: ${unit.code}\n`;
+            messageText += `📐 المساحة: ${unit.size} متر\n\n`;
+            messageText += `🔗 لمشاهدة صور الشقة الفردية، صور العمارة، وموقعها الفعلي لايف على الخريطة مع جدول الأقساط بالتفصيل افتح اللينك التالي 👇:\n`;
+            messageText += `${generatedOfferUrl}\n\n`;
+            messageText += `عقاري اليوم في خدمتكم دائماً!`;
+
+            document.getElementById('offerTextArea').value = messageText;
             document.getElementById('offerResultModal').style.display = 'flex';
         };
 
@@ -1125,409 +333,151 @@
             const textarea = document.getElementById('offerTextArea');
             textarea.select();
             document.execCommand('copy');
-            alert('تم نسخ العرض العقاري المتكامل بنجاح! جاهز للإرسال على الواتساب 📲');
+            alert('تم نسخ العرض بنجاح وجاهز للإرسال على الواتساب 📲');
             document.getElementById('offerResultModal').style.display = 'none';
         };
 
-        window.setTab = (t) => { activeTab = t; showCommercialOnly = false; renderTable(); };
-        window.toggleCommView = () => { showCommercialOnly = !showCommercialOnly; document.getElementById('commToggleBtn').innerText = showCommercialOnly ? "🏠 عرض السكني" : "🏢 عرض التجاري"; renderTable(); };
-        window.toggleNotif = () => { document.getElementById('notifPanel').classList.toggle('hidden'); unreadCount = 0; document.getElementById('notifBadge').classList.add('hidden'); };
-        window.toggleResaleMenu = () => document.getElementById('resaleMenu').classList.toggle('hidden');
-        window.toggleUsersList = () => document.getElementById('usersListContainer').classList.toggle('hidden');
-
-        window.deleteProperty = async (id, code) => {
-            if(confirm(`هل أنت متأكد من حذف الشقة (كود: ${code}) نهائياً؟`)) {
-                await deleteDoc(doc(db, 'properties', id));
-                window.addLog(`تم حذف شقة كود: ${code}`);
-            }
-        };
-
-        window.deleteCurrentBuilding = async () => {
-            if (activeTab === 'الكل' || activeTab === 'التجاري العام 🏢') {
-                alert('رجاءً اختر عمارة محددة من القائمة (التابات) لحذفها بالكامل.');
-                return;
-            }
-            
-            if (confirm(`⚠️ تحذير: هل أنت متأكد من حذف العمارة "${activeTab}" بكامل وحداتها؟ (لا يمكن التراجع)`)) {
-                const unitsToDelete = dataStore.filter(p => p.area === activeTab);
-                if(unitsToDelete.length === 0) return;
-                
-                const batch = writeBatch(db);
-                unitsToDelete.forEach(unit => {
-                    batch.delete(doc(db, 'properties', unit.id));
-                });
-                
-                await batch.commit();
-                
-                buildingOrder = buildingOrder.filter(b => b !== activeTab);
-                await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder });
-                
-                window.addLog(`تم حذف عمارة بالكامل: ${activeTab}`);
-                alert(`تم حذف عمارة ${activeTab} بنجاح!`);
-                window.setTab('الكل'); 
-            }
-        };
+        window.renderTabs = () => { const container = document.getElementById('buildingTabs'); if(!container) return; const allB = [...new Set(dataStore.map(i => i.area))]; container.innerHTML = `<button onclick="setTab('الكل')" class="tab-btn ${activeTab === 'الكل' ? 'active' : ''}">الكل</button>` + allB.map(b => `<button onclick="setTab('${b}')" class="tab-btn ${activeTab === b ? 'active' : ''}">${b}</button>`).join(''); };
+        window.setTab = (t) => { activeTab = t; renderTable(); };
+        window.deleteProperty = async (id, code) => { if(confirm(`حذف؟`)) await deleteDoc(doc(db, 'properties', id)); };
+        window.logout = () => signOut(auth).then(() => { location.reload(); });
     </script>
 </head>
-<body class="bg-white text-right font-sans">
+<body class="bg-slate-50 text-right font-sans">
+
+    <div id="clientViewSection" class="hidden max-w-xl mx-auto p-4 md:p-6 bg-white min-h-screen shadow-2xl border-t-8 border-navy">
+        <header class="text-center py-4 border-b">
+            <h1 class="text-3xl font-black text-navy italic">عقاري اليوم 🏢</h1>
+            <p class="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest">كارت المعاينة واللوكيشن الذكي</p>
+        </header>
+
+        <section class="mt-6">
+            <h3 class="text-sm font-black text-slate-700 mb-3">📸 ألبوم صور العمارة والشقة الميداني:</h3>
+            <div id="clientImagesGallery" class="grid grid-cols-2 gap-3"></div>
+        </section>
+
+        <section class="mt-6 bg-slate-50 p-5 rounded-3xl border border-slate-100">
+            <h2 class="text-xl font-black text-navy border-b pb-2 mb-3">📋 تفاصيل المعاينة الفنية</h2>
+            <div class="grid grid-cols-2 gap-y-3 text-sm font-bold text-slate-700">
+                <div>🏢 كود الوحدة: <span id="cli_code" class="text-blue-700 font-extrabold"></span></div>
+                <div>📍 العمارة / المنطقة: <span id="cli_area"></span></div>
+                <div>📐 مساحة الشقة: <span id="cli_size"></span></div>
+                <div>✨ حالة التشطيب: <span id="cli_finish" class="text-emerald-700"></span></div>
+                <div class="col-span-2">🏢 الدور الحالي: <span id="cli_floor"></span></div>
+            </div>
+        </section>
+
+        <section class="mt-6 bg-blue-50/50 p-5 rounded-3xl border border-blue-100">
+            <h2 class="text-xl font-black text-blue-900 border-b pb-2 mb-3">💰 خطة السداد وحساب الأقساط</h2>
+            <div class="space-y-2.5 text-sm font-bold text-slate-700">
+                <div class="flex justify-between"><span>إجمالي سعر الشقة:</span><span id="cli_total" class="text-navy text-lg font-black"></span></div>
+                <div class="flex justify-between text-emerald-800"><span>المقدم المدفوع الكاش:</span><span id="cli_down"></span></div>
+                <div class="flex justify-between border-t border-dashed pt-2"><span>عدد شهور القسط:</span><span><span id="cli_months" class="text-navy"></span> شهر</span></div>
+                <div class="flex justify-between text-blue-800 bg-white p-3 rounded-2xl border shadow-inner"><span>💵 القسط الشهري الثابت:</span><span id="cli_monthly" class="text-xl font-black"></span></div>
+            </div>
+        </section>
+
+        <section class="mt-6">
+            <h3 class="text-sm font-black text-slate-700 mb-2">📍 الموقع الفعلي الدقيق للعمارة على الخريطة:</h3>
+            <div id="clientMap"></div>
+        </section>
+
+        <footer class="mt-8 text-center border-t pt-4">
+            <a href="https://wa.me/201000000000" class="block w-full bg-emerald-600 text-white font-black text-center p-4 rounded-2xl shadow-lg transition hover:bg-emerald-700">
+                💬 تأكيد موعد المعاينة وتواصل مع الشركة
+            </a>
+        </footer>
+    </div>
+
     <div id="loginSection" class="min-h-screen flex items-center justify-center p-4 font-black">
         <form onsubmit="handleAuth(event)" class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border-t-8 border-navy">
-            <h2 class="text-4xl font-black text-navy mb-6 font-serif uppercase tracking-tighter italic">Inventory</h2>
-            <input id="email" type="email" placeholder="الإيميل" class="w-full border p-3 rounded-xl mb-3 outline-none text-center bg-slate-50 italic uppercase font-black" required>
-            <input id="pass" type="password" placeholder="الباسورد" class="w-full border p-3 rounded-xl mb-5 outline-none text-center bg-slate-50 italic uppercase font-black" required>
-            <div class="flex gap-2 font-black italic">
-                <button type="submit" id="loginBtn" class="flex-1 bg-navy text-white p-3 rounded-xl font-black shadow-lg hover:bg-slate-800 transition uppercase italic">دخول</button>
-                <button type="button" id="regBtn" class="flex-1 bg-slate-100 text-navy p-3 rounded-xl border border-navy/20 hover:bg-slate-200 transition uppercase italic">سجل الآن</button>
-            </div>
+            <h2 class="text-4xl font-black text-navy mb-6 italic">Inventory System</h2>
+            <input id="email" type="email" placeholder="الإيميل" class="w-full border p-3 rounded-xl mb-3 outline-none text-center bg-slate-50 font-black" required>
+            <input id="pass" type="password" placeholder="الباسورد" class="w-full border p-3 rounded-xl mb-5 outline-none text-center bg-slate-50 font-black" required>
+            <button type="submit" class="w-full bg-navy text-white p-3 rounded-xl font-black shadow-lg">دخول المنصة</button>
         </form>
     </div>
 
-    <div id="appSection" class="hidden max-w-6xl mx-auto p-4 md:p-8 font-black uppercase">
-        <header class="flex justify-between items-center mb-6 bg-white p-5 rounded-2xl shadow-sm border-r-8 border-navy relative font-black">
-            <h1 class="text-3xl font-black text-navy italic font-serif tracking-tighter uppercase">Inventory</h1>
-            <div class="flex items-center gap-4 font-black">
-                <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
-                <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
-                <div class="relative cursor-pointer font-black" onclick="toggleNotif()">
-                    <div class="bg-navy p-2 rounded-xl text-white shadow-md text-lg">🔔</div>
-                    <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-white font-black">0</span>
-                </div>
-                <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl border border-red-100 uppercase italic">خروج</button>
-            </div>
-            <div id="notifPanel" class="hidden absolute top-20 left-4 w-64 bg-white shadow-2xl rounded-2xl border border-slate-100 z-[999] overflow-hidden font-black">
-                <div class="p-3 bg-slate-50 border-b font-black text-[10px] text-navy italic uppercase text-right">آخر التحديثات</div>
-                <div id="notifList" class="max-h-64 overflow-y-auto font-black italic"></div>
-            </div>
+    <div id="appSection" class="hidden max-w-6xl mx-auto p-4 md:p-8 font-black">
+        <header class="flex justify-between items-center mb-6 bg-white p-5 rounded-2xl shadow-sm border-r-8 border-navy relative">
+            <h1 class="text-3xl font-black text-navy italic">Inventory Board</h1>
+            <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl">خروج</button>
         </header>
 
-        <div id="buildingTabs" class="flex gap-2 flex-wrap pb-4 mb-4 border-b border-slate-100 font-black italic uppercase"></div>
-
-        <div id="usersControl" class="hidden bg-white p-4 rounded-2xl shadow-md border-r-4 border-slate-400 mb-4 font-black italic uppercase">
-            <div class="flex justify-between items-center cursor-pointer font-black" onclick="toggleUsersList()">
-                <h3 class="text-xs font-black text-slate-700 italic">إدارة الفريق وهيكلة الفريق (Teams) 🛡️:</h3>
-                <span class="text-slate-400 transition uppercase font-black">▼</span>
-            </div>
-            <div id="usersListContainer" class="mt-4 hidden font-black">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 bg-slate-50 p-4 rounded-2xl shadow-inner">
-                    
-                    <div class="lg:col-span-1 border-b lg:border-b-0 lg:border-l pb-4 lg:pb-0 lg:pl-4 border-slate-200">
-                        <p class="text-[10px] font-black mb-2 text-navy italic uppercase underline">إضافة تيم جديد 👥</p>
-                        <form onsubmit="window.createNewTeam(event)" class="flex gap-2 mb-3">
-                            <input id="newTeamNameInput" type="text" placeholder="اسم التيم (مثال: تيم 1)" class="w-full border p-2.5 rounded-xl text-center text-xs outline-none bg-white font-bold" required>
-                            <button type="submit" class="bg-navy text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 transition">إضافة</button>
-                        </form>
-                        <p class="text-[9px] font-black mb-1.5 text-slate-400 uppercase italic">اضغط على التيم لعرض الموظفين 👇:</p>
-                        <div id="adminTeamsManagementList" class="max-h-52 overflow-y-auto pr-1 space-y-1"></div>
-                    </div>
-
-                    <div class="lg:col-span-1 border-b lg:border-b-0 lg:border-l pb-4 lg:pb-0 lg:pl-4 border-slate-200">
-                        <div id="teamMembersOutputList" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm min-h-[180px]"></div>
-                    </div>
-
-                    <div class="lg:col-span-1">
-                        <p class="text-[10px] font-black mb-2 text-navy italic uppercase underline">توزيع وهيكلة الموظفين على الفرق:</p>
-                        <div id="unifiedUserList" class="max-h-72 overflow-y-auto pr-1 space-y-2"></div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <button id="commToggleBtn" onclick="toggleCommView()" class="hidden bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-black mb-4 shadow-lg hover:bg-navy transition font-black italic uppercase">🏢 عرض التجاري</button>
+        <div id="buildingTabs" class="flex gap-2 flex-wrap pb-4 mb-4 font-black"></div>
 
         <div id="adminArea" class="hidden mb-6 space-y-3 font-black">
-             <div class="bg-blue-50 p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center">
-                <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest font-black">📁 رفع شيت إكسيل (Bulk Upload)<input type="file" accept=".xlsx, .xls" onchange="importExcel(event)" class="hidden font-black italic uppercase"></label>
-             </div>
-             <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-md grid grid-cols-2 md:grid-cols-4 gap-3 items-end border border-slate-100 font-black italic uppercase">
-                <input id="c" placeholder="كود الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="a" placeholder="اسم العمارة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="s" oninput="window.autoCalcPrice('size')" placeholder="مساحة الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="f" placeholder="الدور" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black">
-                <select id="finishType" class="border p-2 rounded-lg bg-slate-50 text-[10px] font-black italic transition uppercase font-black"><option value="طوب أحمر">طوب أحمر</option><option value="نص تشطيب">نص تشطيب</option><option value="متشطب">متشطب</option></select>
-                <input id="p" oninput="window.autoCalcPrice('total')" placeholder="السعر الإجمالي" type="number" class="border p-2 rounded-lg font-bold bg-blue-50 text-xs italic outline-none focus:border-navy">
-                <input id="up" oninput="window.autoCalcPrice('unit')" placeholder="سعر المتر" type="number" class="border p-2 rounded-lg font-bold bg-green-50 text-xs italic outline-none focus:border-green-600">
-                <input id="m_link" placeholder="رابط لوكيشن جوجل ماب العمارة 📍" type="text" class="border p-2 rounded-lg bg-amber-50 text-xs font-black outline-none focus:border-amber-500">
-                <button class="bg-navy text-white rounded-lg font-bold h-10 col-span-2 md:col-span-4 shadow-xl hover:bg-slate-800 transition italic uppercase text-xs font-black">إضافة وحدة جديدة</button>
+             <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-md grid grid-cols-2 md:grid-cols-4 gap-3 items-end border border-slate-100">
+                <input id="c" placeholder="كود الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none" required>
+                <input id="a" placeholder="اسم العمارة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none" required>
+                <input id="s" placeholder="مساحة الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none" required>
+                <input id="f" placeholder="الدور" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none">
+                <select id="finishType" class="border p-2 rounded-lg bg-slate-50 text-[10px] font-black"><option value="طوب أحمر">طوب أحمر</option><option value="نص تشطيب">نص تشطيب</option><option value="متشطب">متشطب</option></select>
+                <input id="p" placeholder="السعر الإجمالي" type="number" class="border p-2 rounded-lg font-bold bg-blue-50 text-xs outline-none">
+                <input id="m_coords" placeholder="الإحداثيات لايف من الماب (Latitude, Longitude)" class="border p-2 rounded-lg bg-orange-50 text-xs outline-none">
+                <input id="m_b_images" placeholder="روابط صور واجهة العمارة (مفصولة بفاصلة ,)" class="border p-2 rounded-lg bg-amber-50 text-xs outline-none">
+                <input id="m_apt_images" placeholder="روابط صور الشقة من الداخل (مفصولة بفاصلة ,)" class="border p-2 rounded-lg bg-amber-50 text-xs outline-none col-span-2">
+                <button class="bg-navy text-white rounded-lg font-bold h-10 col-span-2 md:col-span-4 text-xs font-black shadow-md">إضافة وحدة مدمجة بالخريطة والصور</button>
              </form>
-             
-             <div class="flex justify-end mt-3">
-                 <button type="button" onclick="window.deleteCurrentBuilding()" class="bg-white text-red-500 border border-red-200 px-3 py-2 rounded-xl font-bold shadow-sm hover:bg-red-50 transition italic text-[10px] font-black flex items-center gap-1">
-                    ⚰️ حذف العمارة المحددة (احذر)
-                 </button>
-             </div>
         </div>
 
-        <div class="bg-navy p-4 rounded-2xl mb-4 shadow-xl flex gap-2 items-center italic uppercase font-black">
-            <input id="searchBox" type="text" oninput="renderTable()" placeholder="🔍 ابحث بالمساحة الحالية (تقريب 10م)..." class="flex-1 p-3 rounded-xl outline-none font-bold text-xs text-center shadow-inner bg-white/90">
-            <button id="searchModeBtn" onclick="toggleSearchMode()" class="bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase">البحث بالمساحة 📐</button>
-            <button id="availableFilterBtn" onclick="toggleAvailableFilter()" class="bg-white text-navy px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase">المتاح فقط</button>
+        <div class="bg-navy p-4 rounded-2xl mb-4 shadow-xl flex gap-2 items-center">
+            <input id="searchBox" type="text" oninput="renderTable()" placeholder="🔍 ابحث في الكشوفات الحالية..." class="flex-1 p-3 rounded-xl outline-none font-bold text-xs text-center bg-white/90">
         </div>
 
-        <div class="bg-white rounded-3xl shadow-xl overflow-x-auto border border-slate-200 font-black italic uppercase">
-            <table class="w-full text-right min-w-[1000px] text-right">
-                <thead class="bg-slate-800 text-white text-[11px] uppercase font-black text-center italic">
-                    <tr> <th class="p-5 font-black uppercase tracking-tighter">#</th> <th class="p-5 font-black uppercase tracking-tighter text-right">كود</th> <th class="p-5 font-black uppercase tracking-tighter text-center">العمارة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">التشطيب</th> <th class="p-5 font-black uppercase tracking-tighter text-center">مساحة/دور</th> <th class="p-5 font-black uppercase tracking-tighter text-center italic">سعر المتر</th> <th class="p-5 font-black uppercase tracking-tighter text-right italic font-black">السعر</th> <th class="p-5 font-black uppercase tracking-tighter text-center">الحالة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">تحكم</th> </tr>
+        <div class="bg-white rounded-3xl shadow-xl overflow-x-auto border border-slate-200">
+            <table class="w-full text-right min-w-[1000px]">
+                <thead class="bg-slate-800 text-white text-[11px] font-black text-center italic">
+                    <tr> <th class="p-5">#</th> <th class="p-5 text-right">كود</th> <th class="p-5 text-center">العمارة</th> <th class="p-5 text-center">التشطيب</th> <th class="p-5 text-center">مساحة/دور</th> <th class="p-5 text-center">سعر المتر</th> <th class="p-5 text-right">السعر</th> <th class="p-5">الحالة</th> <th class="p-5">تحكم</th> </tr>
                 </thead>
-                <tbody id="propertiesList" class="font-black italic uppercase"></tbody>
+                <tbody id="propertiesList" class="font-black"></tbody>
             </table>
         </div>
     </div>
-    
-    <div id="nameSetupModal" style="display:none;" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4 z-[10005]">
-        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-center font-black">
-            <h3 class="text-navy font-black text-base mb-2">مرحباً بك في السيستم فريد 👋</h3>
-            <p class="text-[11px] text-slate-400 mb-4 font-medium">برجاء إدخال اسمك الثنائي باللغة العربية (ليتم ربطه بتيمك وتقارير مبيعاتك تلقائياً).</p>
-            <input id="setupAgentNameInput" type="text" placeholder="مثال: محمد سعيد" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-4">
-            <input type="button" onclick="window.saveAgentNameSetup()" value="حفظ والولوغ للمنصة" class="w-full bg-navy text-white p-3 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition cursor-pointer">
-        </div>
-    </div>
 
-    <div id="statusDetailsModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4 z-[10011]">
-        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-right font-black">
-            <h3 class="text-navy font-black mb-4 text-base underline underline-offset-4">توثيق العملية الحالية 📝</h3>
-            <div class="space-y-3">
-                <div>
-                    <label class="text-[10px] text-slate-400 block mb-1">اسم موظف المبيعات (السيلز)</label>
-                    <input id="salesName" type="text" placeholder="اكتب اسم السيلز..." class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
-                </div>
-                <div id="sharedPercentageWrapper" style="display:none;">
-                    <label class="text-[10px] text-amber-600 block mb-1">نسبة الموظف الأول الكلية في هذه البيعة (%)</label>
-                    <input id="sharedFirstPct" type="number" value="50" min="0" max="100" class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-orange-50 focus:border-navy font-black">
-                </div>
-                <div>
-                    <label class="text-[10px] text-slate-400 block mb-1">اسم المشتري (العميل)</label>
-                    <input id="buyerName" type="text" placeholder="اكتب اسم العميل..." class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
-                </div>
-                <div id="commissionSourceWrapper" style="display:none;">
-                    <label class="text-[10px] text-navy block mb-1">مصدر البيعة لتوزيع العمولات 💰</label>
-                    <select id="commissionSource" class="w-full border p-2 rounded-xl text-center text-xs bg-slate-50 font-black outline-none focus:border-navy">
-                        <option value="personal">بيرسونال (Personal)</option>
-                        <option value="company">كومباني (Company)</option>
-                        <option value="indirect">إن دايركت (Indirect)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-[10px] text-orange-500 block mb-1">تاريخ توثيق العملية (لإدخال شهور سابقة)</label>
-                    <input id="customStatusDate" type="month" class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
-                </div>
-            </div>
-            <div class="flex gap-2 mt-5">
-                <button onclick="saveStatusDetails()" class="flex-1 bg-navy text-white p-2.5 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition">حفظ التوثيق</button>
-                <button onclick="document.getElementById('statusDetailsModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-2.5 rounded-xl font-black text-xs hover:bg-slate-200 transition">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="adminReportModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10004]">
-        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col modal-animate text-right font-black">
-            <div class="p-5 bg-navy text-white flex justify-between items-center shadow-lg">
-                <h2 class="text-base font-black">تقارير المبيعات والحجوزات الشاملة 📊</h2>
-                <div class="flex items-center gap-3">
-                    <button onclick="window.toggleLeaderboardModal()" class="no-print bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">لوحة الصدارة 🏆</button>
-                    <button onclick="window.printReport()" class="no-print bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">طباعة التقرير الفوري 🖨️</button>
-                    <button onclick="window.addPreviousMonthManual()" class="no-print bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">إضافة شهر سابق 📅</button>
-                    <button onclick="toggleAdminReportModal()" class="no-print text-2xl font-bold hover:text-red-400 transition">×</button>
-                </div>
-            </div>
-            
-            <div class="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-4">
-                
-                <div class="no-print bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div class="flex items-center gap-2 w-full md:w-auto">
-                        <span class="text-[11px] text-navy font-black shrink-0">الأرشيف 📁:</span>
-                        <select id="archiveYearSelect" onchange="window.handleArchiveYearChange(this)" class="border p-2 rounded-xl text-xs font-bold bg-slate-50 focus:border-navy outline-none cursor-pointer w-full md:w-44"></select>
-                    </div>
-                    <div id="checkboxesWrapper" class="flex items-center gap-2 w-full md:w-auto overflow-x-auto py-1 scrollbar-hide">
-                        <span class="text-[11px] text-navy font-black shrink-0">شهور السنة الحالية 📅:</span>
-                        <div id="monthsCheckboxesContainer" class="flex items-center gap-1.5"></div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-3 gap-3">
-                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-green-600 shadow-sm text-center">
-                        <p id="soldCardTitle" class="text-[10px] text-slate-400 font-black">المباع</p>
-                        <p id="reportSoldCount" class="text-xl font-black text-green-600 mt-1 eng-num">0</p>
-                    </div>
-                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-amber-500 shadow-sm text-center">
-                        <p id="reservedCardTitle" class="text-[10px] text-slate-400 font-black">المحجوز</p>
-                        <p id="reportReservedCount" class="text-xl font-black text-amber-500 mt-1 eng-num">0</p>
-                    </div>
-                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-blue-800 shadow-sm text-center bg-blue-50/20">
-                        <p class="text-[10px] text-blue-900 font-black">إجمالي مباع السنة الحالية الكلي</p>
-                        <p id="reportAnnualSoldCount" class="text-xl font-black text-blue-800 mt-1 eng-num">0</p>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl border overflow-x-auto shadow-sm">
-                    <table class="w-full min-w-[600px]">
-                        <thead class="bg-slate-100 border-b text-center text-[10px] text-slate-500 font-black uppercase">
-                            <tr>
-                                <th class="p-3">كود الوحدة و السعر</th>
-                                <th class="p-3">العمارة</th>
-                                <th class="p-3">الحالة والمصدر</th>
-                                <th class="p-3">اسم السيلز والعمولات</th>
-                                <th class="p-3">اسم المشتري</th>
-                                <th class="p-3">التاريخ</th>
-                                <th class="p-3 no-print">إجراء الأدمن</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reportItemsList"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="adminPriceModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10010]">
-        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy text-right font-black modal-animate">
-            <h3 class="text-navy font-black mb-4 text-sm underline underline-offset-4">تعديل السعر الجديد 💰</h3>
-            <input id="adminPriceInput" type="text" class="w-full border p-4 rounded-xl text-center text-xl bg-slate-50 font-black mb-4 outline-none focus:border-navy eng-num" placeholder="0">
-            <div class="flex gap-2">
-                <button onclick="window.savePriceByAdmin()" class="flex-1 bg-navy text-white p-3 rounded-xl font-black text-xs">حفظ السعر</button>
-                <button onclick="document.getElementById('adminPriceModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-3 rounded-xl font-black text-xs">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="editTeamModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10008]">
-        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy text-right font-black modal-animate">
-            <h3 class="text-navy font-black mb-4 text-sm underline underline-offset-4">تعديل تيم العملية 👥</h3>
-            <select id="teamSelectionList" class="w-full border p-3 rounded-xl text-center text-xs bg-slate-50 font-black mb-4"></select>
-            <div id="teamSalesSelectContainer" class="mb-4" style="display:none;">
-                <label class="text-[10px] text-slate-400 block mb-1">اختر الموظف لتحديد التيم:</label>
-                <select id="teamSalesSelect" class="w-full border p-3 rounded-xl text-center text-xs bg-slate-50 font-black"></select>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="window.savePropTeamChange()" class="flex-1 bg-navy text-white p-2.5 rounded-xl font-black text-xs">حفظ التغيير</button>
-                <button onclick="document.getElementById('editTeamModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-2.5 rounded-xl font-black text-xs">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="leaderboardModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10006]">
-        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md border-t-8 border-navy p-6 text-right font-black modal-animate relative">
-            <button onclick="window.toggleLeaderboardModal()" class="absolute top-3 left-4 text-slate-300 hover:text-red-500 font-bold text-xl transition">×</button>
-            <h3 class="text-navy font-black text-base border-b pb-2 mb-4">🏆 لوحة الصدارة بحجم مبيعات الشهر (كاش)</h3>
-            <div class="space-y-4">
-                <div class="space-y-2">
-                    <p class="text-xs font-black text-slate-800">⭐ أفضل 3 مبيعات مبيعات وتكافؤ العقود:</p>
-                    <div id="topSalesOutput" class="space-y-1.5"></div>
-                </div>
-                <div class="space-y-2">
-                    <p class="text-xs font-black text-slate-800">🏢 التيم المتصدر بمبيعات أعضائه الكلية:</p>
-                    <div id="topTeamOutput"></div>
-                </div>
-            </div>
-            <button onclick="window.toggleLeaderboardModal()" class="w-full bg-navy text-white text-xs font-bold py-2.5 mt-5 rounded-xl shadow-md transition hover:bg-slate-800">إغلاق لوحة الصدارة</button>
-        </div>
-    </div>
-
-    <div id="cleanLeaderboardPromptModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10007]">
-        <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm border-t-8 border-navy modal-animate text-right p-6 font-black">
-            <h3 class="text-navy font-black text-sm mb-3 border-b pb-2 flex items-center gap-1.5">⚙️ ضبط نسب البيع المشترك للوحدة</h3>
-            <p class="text-xs text-slate-500 mb-4 font-semibold leading-relaxed">
-                الوحدة كود (<span id="sharedUnitCodeDisplay" class="text-blue-800 font-black"></span>) مشتركة بين 
-                <span id="sharedFirstAgentName" class="text-navy font-black"></span> و 
-                <span id="sharedSecondAgentName" class="text-navy font-black"></span>.
-            </p>
-            <div class="mb-4">
-                <label class="text-[11px] text-slate-400 block mb-1.5 font-bold">
-                    برجاء إدخال نسبة [ <span id="promptAgentLabelName" class="text-blue-800 font-black"></span> ] الكلية (%):
-                </label>
-                <input id="cleanSharedPctInput" type="number" value="50" min="0" max="100" class="w-full border p-3 rounded-xl text-center eng-num font-black text-base outline-none bg-slate-50 focus:border-navy">
-            </div>
-            <div class="flex gap-2 pt-2">
-                <button onclick="window.saveCleanSharedPercentage()" class="flex-1 bg-navy text-white p-3 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition">حفظ النسبة وتحديث التقرير</button>
-                <button onclick="document.getElementById('cleanLeaderboardPromptModal').style.display='none'" class="bg-slate-100 text-slate-500 px-4 py-3 rounded-xl text-xs font-bold transition">إلغاء</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10001] font-black uppercase italic">
+    <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10001] font-black">
         <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-[340px] relative border-t-8 border-navy p-6 text-right font-black">
-            <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black">×</button>
-            <h3 class="text-navy font-black mb-4 text-lg text-right italic underline underline-offset-4">حساب القسط: <span id="m_code"></span></h3>
-            <div class="space-y-4 font-black italic text-right">
+            <h3 class="text-navy font-black mb-4 text-lg underline underline-offset-4">حساب القسط الذكي: <span id="m_code"></span></h3>
+            <div class="space-y-4 font-black">
                 <div>
-                    <label class="text-[10px] text-slate-400 block mb-1 pr-2 uppercase">إجمالي السعر</label>
-                    <input id="m_total" type="text" oninput="window.runCalc('price')" class="w-full bg-slate-50 border p-2 rounded-lg eng-num font-extrabold text-base outline-none border-slate-200">
+                    <label class="text-[10px] text-slate-400 block mb-1 pr-2">إجمالي السعر</label>
+                    <input id="m_total" type="text" oninput="window.runCalc('price')" class="w-full bg-slate-50 border p-2 rounded-lg eng-num font-extrabold text-base outline-none">
                 </div>
                 <div class="border-b pb-2">
                     <label class="text-[10px] text-navy block mb-1 pr-2">المقدم</label>
                     <div class="grid grid-cols-3 gap-2 w-full">
-                        <input id="m_down_pct" placeholder="%" type="text" oninput="window.runCalc('pct_input')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
-                        <input id="m_down" placeholder="كاش" type="text" oninput="window.runCalc('amount_input')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
-                    </div>
-                </div>
-                <div class="border-b pb-2">
-                    <label class="text-[10px] text-red-500 block mb-1 pr-2">الدفعات % <span id="res_pct_val" class="text-[12px] font-extrabold text-navy"></span></label>
-                    <div class="grid grid-cols-3 gap-2 w-full">
-                        <input id="m_d_pct" placeholder="%" type="text" oninput="window.runCalc('d_pct')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
-                        <input id="m_d_amount" placeholder="كاش" type="text" oninput="window.runCalc('d_amount')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
+                        <input id="m_down_pct" placeholder="%" type="text" oninput="window.runCalc('pct_input')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base">
+                        <input id="m_down" placeholder="كاش" type="text" oninput="window.runCalc('amount_input')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base">
                     </div>
                 </div>
                 <div>
-                    <label class="text-[10px] text-slate-500 block mb-1 pr-2 uppercase">عدد الشهور الكلي</label>
-                    <input id="m_months" type="text" oninput="window.runCalc('price')" class="w-full bg-gray-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
+                    <label class="text-[10px] text-slate-500 block mb-1 pr-2">عدد الشهور الكلي</label>
+                    <input id="m_months" type="text" oninput="window.runCalc('price')" class="w-full bg-gray-50 border p-2 rounded-xl eng-num font-extrabold text-base">
                 </div>
             </div>
-            <div class="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-3xl text-center font-black relative">
-                <label class="text-[10px] text-slate-400 block mb-1">القسط الشهري (اضغط هنا للتعديل وحساب الشهور):</label>
-                <div class="flex items-center justify-center gap-1 border-b border-slate-300 focus-within:border-navy py-1 mx-4">
-                    <span class="text-xs font-bold text-slate-400 font-mono">EGP</span>
-                    <input id="res_monthly_input" type="text" oninput="window.runCalc('output_edit')" class="bg-transparent text-blue-900 eng-num font-extrabold text-2xl w-full text-center outline-none" placeholder="0">
-                </div>
+            <div class="mt-4 bg-slate-50 border p-4 rounded-3xl text-center font-black">
+                <label class="text-[10px] text-slate-400 block mb-1">القسط الشهري المحسوب:</label>
+                <input id="res_monthly_input" type="text" oninput="window.runCalc('output_edit')" class="bg-transparent text-blue-900 eng-num font-extrabold text-2xl w-full text-center outline-none" placeholder="0">
             </div>
             
-            <button onclick="window.generateClientOffer()" class="w-full bg-emerald-600 text-white p-3.5 mt-4 rounded-2xl font-black shadow-lg text-xs transition hover:bg-emerald-700">
-                📲 تجهيز رسالة العرض للعميل
+            <button onclick="window.generateClientOfferLink()" class="w-full bg-emerald-600 text-white p-3.5 mt-4 rounded-2xl font-black shadow-lg text-xs">
+                🔗 إصدار لينك العرض والتفتيش التفاعلي للعميل
             </button>
-            <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-navy text-white p-3 mt-2 rounded-2xl font-black shadow-sm text-xs transition">إغلاق</button>
+            <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-navy text-white p-3 mt-2 rounded-2xl font-black text-xs">إغلاق</button>
         </div>
     </div>
 
     <div id="offerResultModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-[10002]">
         <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm border-t-8 border-emerald-600 text-right font-black">
-            <h3 class="text-emerald-700 font-black mb-3 text-base">📝 عرض السعر الجاهز للإرسال</h3>
-            <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">تم دمج بيانات الشقة، الحسبة، واللوكيشن من الماب بنجاح في الرسالة بالأسفل:</p>
-            <textarea id="offerTextArea" rows="10" class="w-full border p-3 rounded-2xl text-xs bg-slate-50 font-medium text-slate-700 leading-relaxed outline-none focus:border-emerald-600 resize-none"></textarea>
+            <h3 class="text-emerald-700 font-black mb-3 text-base">📝 العرض الرقمي المتكامل جاهز</h3>
+            <textarea id="offerTextArea" rows="9" class="w-full border p-3 rounded-2xl text-xs bg-slate-50 font-medium text-slate-700 leading-relaxed outline-none resize-none"></textarea>
             <div class="flex gap-2 mt-4">
-                <button onclick="window.copyOfferText()" class="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-black text-xs shadow-md">📋 نسخ العرض وإغلاق</button>
+                <button onclick="window.copyOfferText()" class="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-black text-xs shadow-md">📋 نسخ العرض وإرساله للعميل</button>
                 <button onclick="document.getElementById('offerResultModal').style.display='none'" class="bg-slate-100 text-slate-500 px-4 py-3 rounded-xl text-xs font-bold">إلغاء</button>
             </div>
         </div>
     </div>
 
-    <div id="resaleMenu" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[10000] flex items-center justify-center p-4">
-        <div class="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col font-black italic uppercase">
-            <div class="p-6 bg-navy text-white flex justify-between items-center shadow-lg font-black italic"><h2 class="text-3xl font-black italic uppercase text-right">وحدات الـ RESALE</h2><button onclick="toggleResaleMenu()" class="text-4xl font-bold transition hover:rotate-90 font-black">×</button></div>
-            <div class="p-6 overflow-y-auto flex-1 bg-slate-50 italic">
-                <div id="adminResaleAdd" class="admin-only-feature hidden mb-8 p-6 bg-white border-2 border-dashed border-slate-300 rounded-[2.5rem] font-black text-right shadow-sm italic uppercase">
-                    <form onsubmit="window.addResale(event)" class="grid grid-cols-2 md:grid-cols-5 gap-3 font-black text-right italic uppercase">
-                        <input id="rc" placeholder="كود" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic" required>
-                        <input id="ra" placeholder="منطقة" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic" required>
-                        <input id="rs" placeholder="مساحة" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic">
-                        <input id="rp" placeholder="سعر" class="border p-3 rounded-xl bg-blue-50 font-black outline-none focus:border-navy">
-                        <select id="rf" class="border p-3 rounded-xl text-xs font-black bg-slate-50 italic transition uppercase"><option value="طوب أحمر">طوب أحمر</option><option value="متشطب">متشطب</option></select>
-                        <button type="submit" class="col-span-2 md:col-span-5 bg-navy text-white rounded-xl p-3 font-bold text-sm shadow-lg hover:bg-slate-800 transition">حفظ الوحدة</button>
-                    </form>
-                </div>
-                <div id="resaleItemsList" class="text-right italic uppercase"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="finishEditModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[10002] items-center justify-center p-4 text-center font-black italic uppercase">
-        <div class="bg-white p-8 rounded-[3rem] shadow-2xl w-full max-w-xs border-t-8 border-navy font-black italic">
-            <h3 class="font-black mb-6 text-navy text-lg uppercase text-center italic underline">تغيير التشطيب:</h3>
-            <div class="grid gap-3 font-black italic transition uppercase">
-                <button onclick="saveFinishChange('طوب أحمر')" class="bg-slate-100 p-4 rounded-2xl text-slate-700 transition font-black hover:bg-slate-200 font-black italic">طوب أحمر</button>
-                <button onclick="saveFinishChange('نص تشطيب')" class="bg-slate-100 p-4 rounded-2xl text-slate-700 transition font-black hover:bg-slate-200 font-black italic">نص تشطيب</button>
-                <button onclick="saveFinishChange('متشطب')" class="bg-navy text-white p-4 rounded-2xl font-black shadow-md transition italic">متشطب</button>
-            </div>
-            <button onclick="document.getElementById('finishEditModal').style.display='none'" class="mt-6 text-slate-400 font-black text-[10px] uppercase underline text-center italic tracking-widest transition">إلغاء</button>
-        </div>
-    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
