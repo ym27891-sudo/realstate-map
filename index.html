@@ -10,16 +10,19 @@
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
         
         #top-bar { background: #0f172a; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
-        .top-btns-group { display: flex; gap: 10px; }
+        .top-btns-group { display: flex; gap: 10px; align-items: center; }
         .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s ease; }
         .btn:hover { background: #2563eb; transform: translateY(-1px); }
         .btn-success { background: #10b981; }
         .btn-success:hover { background: #059669; }
         .btn-danger { background: #ef4444; }
         .btn-danger:hover { background: #dc2626; }
-        .btn-admin-active { background: #ef4444 !important; }
         .btn-sales { background: #8b5cf6; }
         .btn-sales:hover { background: #7c3aed; }
+        
+        /* شريط البحث المضاف */
+        .search-container { display: flex; gap: 5px; background: white; border-radius: 8px; padding: 4px; border: 1px solid #cbd5e1; }
+        .search-input { border: none; padding: 6px 12px; font-size: 14px; outline: none; border-radius: 6px; width: 200px; }
 
         #main-container { display: flex; flex: 1; height: calc(100vh - 60px); width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
@@ -31,7 +34,7 @@
         .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
         .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; }
 
-        /* نافذة عرض الصور الكبيرة بدقة عالية (Lightbox) */
+        /* نافذة عرض الصور الكبيرة (Lightbox) */
         #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
         #lightbox-img { max-width: 90%; max-height: 85vh; border-radius: 12px; box-shadow: 0 0 30px rgba(255,255,255,0.2); }
         .lightbox-close { position: absolute; top: 20px; left: 20px; color: white; font-size: 35px; cursor: pointer; }
@@ -66,7 +69,7 @@
         .apt-edit-box { background: white; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; position: relative; }
         
         .image-preview { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-        .image-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
+        .image-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1; }
         
         .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
         .delete-icon-btn:hover { background: #ef4444; color: white; }
@@ -76,20 +79,24 @@
         .btn-call { background: #2563eb; }
         .btn-whatsapp { background: #16a34a; }
         
-        /* بار السيلز العلوي المخصص لإصدار اللينكات */
-        #sales-badge-info { font-size: 13px; font-weight: bold; padding: 4px 10px; border-radius: 6px; background: #1e293b; color: #a7f3d0; margin-left: 10px; display: none; }
+        #sales-badge-info { font-size: 13px; font-weight: bold; padding: 6px 12px; border-radius: 8px; background: #1e293b; color: #a7f3d0; margin-left: 15px; display: none; }
     </style>
 </head>
 <body>
 
     <div id="top-bar">
-        <div style="display: flex; align-items: center;">
-            <h2>منظومة إدارة الخرائط العقارية الذكية 🏢</h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <h2>منظومة الخرائط العقارية الذكية 🏢</h2>
+            <!-- شريط البحث السريع المضاف -->
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="ابحث برقم أو اسم العمارة..." oninput="searchBuilding()">
+            </div>
             <div id="sales-badge-info"></div>
         </div>
         <div class="top-btns-group">
             <button id="sales-link-btn" class="btn btn-sales" onclick="openSalesModal()">🔑 رابط السيلز المخصص</button>
-            <button id="admin-toggle-btn" class="btn" onclick="toggleAdminMode()">🔧 وضع التعديل وإضافة العماير</button>
+            <!-- زر الدخول السري المطور بالباسوورد -->
+            <button id="admin-toggle-btn" class="btn" style="background:#475569;" onclick="promptAdminLogin()">🔒 لوحة التحكم (خاص بالمدير)</button>
         </div>
     </div>
 
@@ -137,7 +144,7 @@
         <div class="modal-content">
             <span class="modal-close" onclick="closeBuildingModal()">✕</span>
             
-            <h3 style="font-size:14px; color:#64748b; margin-bottom:5px;">📸 ألبوم صور العمارة والمدخل (اضغط على الصورة لتكبيرها بوضوح):</h3>
+            <h3 style="font-size:14px; color:#64748b; margin-bottom:5px;">📸 ألبوم صور العمارة والمدخل (اضغط لتكبير الصورة):</h3>
             <div id="modal-b-gallery" class="gallery"></div>
             
             <div style="display:flex; justify-content:space-between; align-items:start; margin-top:10px;">
@@ -150,7 +157,10 @@
             
             <div id="modal-b-desc-box" class="info-box" style="margin-top:15px;"></div>
             
-            <div id="floors-section" class="animated-section" style="margin-top:20px;">
+            <!-- زر فتح لوكيشن جوجل ماب الحقيقي المضاف -->
+            <button id="google-maps-btn" class="btn" style="background:#134e4a; width:100%; margin-bottom:15px; font-size:14px;" target="_blank">🗺️ فتح موقع العمارة على Google Maps ومعاينتها بالـ GPS</button>
+            
+            <div id="floors-section" class="animated-section" style="margin-top:10px;">
                 <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
                 <div id="modal-floors-list"></div>
             </div>
@@ -187,7 +197,6 @@
                 </div>
             </div>
             
-            <!-- أزرار الاتصال الذكية اللي بتتحول على السيلز تلقائياً -->
             <div class="action-buttons">
                 <a href="tel:01000000000" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="https://wa.me/201000000000" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
@@ -195,7 +204,7 @@
         </div>
     </div>
 
-    <!-- 🌟 نافذة إعداد وحفظ روابط السيلز المخصصة -->
+    <!-- 🌟 نافذة إعداد روابط السيلز -->
     <div id="sales-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
             <span class="modal-close" onclick="closeSalesModal()">✕</span>
@@ -231,7 +240,6 @@
         let currentSidebarBuildingImages = [];
         let currentSidebarAptImagesMap = {}; 
 
-        // بيانات الشركة والافتراضية للمنظومة العقارية بالكامل
         let allBuildings = [
             {
                 id: 1,
@@ -247,7 +255,6 @@
             }
         ];
 
-        // 🔗 وظيفة فحص روابط السيلز المخصصة في الـ URL وقراءة هويته
         let currentSalesData = { name: "", phone: "01000000000", whatsapp: "201000000000" };
         function checkSalesQuery() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -256,14 +263,39 @@
                 currentSalesData.phone = urlParams.get('sales_phone') || "01000000000";
                 currentSalesData.whatsapp = urlParams.get('sales_ws') || "201000000000";
                 
-                // إظهار شارة السيلز النشط فوق خالص للعميل
                 const badge = document.getElementById('sales-badge-info');
                 badge.innerText = `👤 المستشار العقاري: ${currentSalesData.name}`;
                 badge.style.display = 'inline-block';
             }
         }
 
-        // تشغيل نظام التكبير التلقائي للصور لعرض مجهود الصور بوضوح (Lightbox)
+        // 🔒 وظيفة تسجيل الدخول بالباسوورد لحماية الكود وفصل الصلاحيات عن السيلز
+        function promptAdminLogin() {
+            if(adminMode) {
+                // لو شغال بالفعل وعاوز يقفله
+                toggleAdminMode();
+                return;
+            }
+            let password = prompt("من فضلك أدخل الرقم السري للوحة التحكم (خاص بالمدير فقط):");
+            if(password === "1234") { // الباسوورد الافتراضية، تقدر تعدلها هنا براحتك
+                toggleAdminMode();
+            } else if(password !== null) {
+                alert("الرقم السري خطأ! تم رفض الدخول لحماية البيانات العقارية.");
+            }
+        }
+
+        // 🔍 وظيفة شريط البحث المطور
+        function searchBuilding() {
+            let query = document.getElementById('search-input').value.trim().toLowerCase();
+            if(!query) return;
+            
+            let found = allBuildings.find(b => b.name.toLowerCase().includes(query));
+            if(found) {
+                map.setView(found.coords, 18); // زووم قوي على مكانها
+                openBuildingModal(found); // فتح النافذة تلقائياً
+            }
+        }
+
         function viewImageInLightbox(src) {
             const lightbox = document.getElementById('lightbox-overlay');
             const lightboxImg = document.getElementById('lightbox-img');
@@ -292,12 +324,12 @@
             adminMode = !adminMode;
             const btn = document.getElementById('admin-toggle-btn');
             if(adminMode) {
-                btn.innerText = "🛑 إلغاء وضع التعديل";
-                btn.classList.add('btn-admin-active');
-                alert("وضع التحكم شغال:\n- لإضافة عمارة: اضغط على أي مكان فارغ في الخريطة.\n- لتعديل عمارة أو حذفها: اضغط على دبوس العمارة مباشرة.");
+                btn.innerText = "🛑 قفل وضع التحكم والرجوع للفرجة";
+                btn.style.background = "#ef4444";
+                alert("تم تفعيل وضع الإدارة المتقدم! اضغط على الخريطة للإنشاء، أو الدبوس للتعديل.");
             } else {
-                btn.innerText = "🔧 وضع التعديل وإضافة العماير";
-                btn.classList.remove('btn-admin-active');
+                btn.innerText = "🔒 لوحة التحكم (خاص بالمدير)";
+                btn.style.background = "#475569";
                 closeAdminSidebar();
             }
         }
@@ -510,13 +542,17 @@
             renderMarkers();
         }
 
-        // عرض العميل المنبثق مع إضافة ميزة تكبير الصور الواضح (Lightbox)
         function openBuildingModal(b) {
             currentSelectedBuilding = b;
             document.getElementById('modal-b-name').innerText = b.name;
             document.getElementById('modal-b-loc').innerText = "📍 " + b.locationDesc;
             document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة:</strong> عمارة متميزة بموقع استراتيجي في ${b.locationDesc}.`;
             
+            // ربط لينك جوجل ماب الحقيقي بالإحداثيات لتوجيه العميل بالـ GPS تلقائياً
+            document.getElementById('google-maps-btn').onclick = function() {
+                window.open(`https://www.google.com/maps/search/?api=1&query=${b.coords[0]},${b.coords[1]}`, '_blank');
+            };
+
             const statusZone = document.getElementById('modal-b-status-zone');
             if(b.buildingStatus === 'مبنية') {
                 statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام الفوري 🔑</span>`;
@@ -528,7 +564,7 @@
             gallery.innerHTML = '';
             if(b.images && b.images.length > 0) {
                 b.images.forEach(img => { 
-                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')" title="اضغط لعرضها بوضوح فائق"/>`; 
+                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')" title="اضغط للتكبير"/>`; 
                 });
             } else {
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور للواجهة والمداخل حالياً.</p>';
@@ -580,7 +616,6 @@
             currentActiveAptPrice = parseInt(apt.price.replace(/[^\d]/g, '')) || 0;
             document.getElementById('calc-results').style.display = 'none';
 
-            // 🎯 تحديث روابط السيلز المحفوظة بشكل فوري وديناميكي عند تصفح الكارت
             document.getElementById('sidebar-call-btn').href = `tel:${currentSalesData.phone}`;
             document.getElementById('whatsapp-link').href = `https://wa.me/${currentSalesData.whatsapp}?text=أهلاً بك، أنا مهتم بالاستفسار عن شقة مساحة ${apt.size} في ${currentSelectedBuilding.name} المتاحة بسعر ${apt.price}`;
 
@@ -588,7 +623,7 @@
             gallery.innerHTML = '';
             if(apt.images && apt.images.length > 0) {
                 apt.images.forEach(img => { 
-                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')" title="اضغط لعرضها بوضوح فائق"/>`; 
+                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')"/>`; 
                 });
             } else {
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور داخلية للشقة بعد.</p>';
@@ -612,7 +647,6 @@
             calcBox.style.display = 'block';
         }
 
-        // 🔑 وظائف إنشاء روابط السيلز ونسخها لحفظ الحقوق والعمولات
         function openSalesModal() { document.getElementById('sales-modal').classList.add('active'); }
         function closeSalesModal() { document.getElementById('sales-modal').classList.remove('active'); }
         
@@ -622,7 +656,7 @@
             let ws = document.getElementById('sales-ws-input').value;
             
             if(!name || !phone || !ws) return alert("من فضلك املأ جميع بيانات السيلز لإصدار اللينك بشكل صحيح!");
-            if(!ws.startsWith('20')) ws = '20' + Number(ws); // تظبيط مفتاح مصر للواتساب تلقائياً
+            if(!ws.startsWith('20')) ws = '20' + Number(ws);
 
             const baseUrl = window.location.origin + window.location.pathname;
             const generatedUrl = `${baseUrl}?sales_name=${encodeURIComponent(name)}&sales_phone=${encodeURIComponent(phone)}&sales_ws=${encodeURIComponent(ws)}`;
@@ -631,9 +665,8 @@
             linkBox.innerText = generatedUrl;
             linkBox.style.display = 'block';
             
-            // نسخ اللينك فورياً للمحافظة
             navigator.clipboard.writeText(generatedUrl);
-            alert("مبروك يا بطل! تم إصدار لينك السيلز المخصص ونسخه في حافظة جهازك بنجاح. ابعته لعملائك وحقك محفوظ!");
+            alert("تم إصدار لينك السيلز المخصص ونسخه بنجاح! ابعته لعملائك وحقك محفوظ!");
         }
 
         function goBackToFloors() { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.remove('fade-out'); fs.classList.add('fade-in'); }
@@ -642,7 +675,6 @@
         function closeModal(modal, e) { if(e.target === modal) modal.classList.remove('active'); }
         function closeAdminSidebar() { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; }
 
-        // فحص اللينك فور فتح المنظومة لتحديد هوية السيلز المستلم
         checkSalesQuery();
         renderMarkers();
     </script>
