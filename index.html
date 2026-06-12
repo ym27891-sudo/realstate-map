@@ -71,7 +71,6 @@
         let loggedInUserDocId = "";
         let currentEditingPropId = "";
         
-        // إضافات جديدة لربط السيلز بالماب
         let currentAgentPhone = "01000000000";
         let currentAgentWhatsapp = "201000000000";
 
@@ -103,7 +102,6 @@
                 
                 if(userDoc.exists() && userDoc.data().name) {
                     window.currentAgentName = userDoc.data().name;
-                    // استرجاع أرقام السيلز عشان الماب
                     currentAgentPhone = userDoc.data().phone || "01000000000";
                     currentAgentWhatsapp = userDoc.data().whatsapp || "201000000000";
                 } else {
@@ -293,7 +291,6 @@
 
                 let statusCls = displayStatus === 'متاح' ? "bg-green-600 text-white" : displayStatus === 'تم الحجز' ? "bg-yellow-400 text-black shadow-sm" : "bg-red-600 text-white";
                 
-                // تعديل هنا: تمرير العمارة (item.area) لـ openCalc عشان الماب
                 htmlBuffer += `<tr class="border-b text-center text-sm bg-white hover:bg-blue-50 transition font-black">
                     <td class="p-4">${icon}</td>
                     <td class="p-4 text-navy text-right font-black italic">${item.code}</td>
@@ -315,7 +312,6 @@
             renderTabs();
         };
 
-        // تعديل هنا: إضافة بيانات التليفون والواتس للسيلز
         window.saveAgentNameSetup = async () => {
             const name = document.getElementById('setupAgentNameInput').value.trim();
             const phone = document.getElementById('setupAgentPhoneInput').value.trim();
@@ -1069,30 +1065,57 @@
             }
         };
 
-        // الدالة السحرية لإرسال اللينك للماب
+        // التعديل الجديد هنا: توليد رسالة واتساب كاملة بدل اللينك لوحده
         window.generateAndSendToMap = () => {
             const code = document.getElementById('m_code').innerText;
             const area = document.getElementById('m_area').innerText || '';
-            const total = unformatMoney(cleanToEngNum(document.getElementById('m_total').value));
-            const down = unformatMoney(cleanToEngNum(document.getElementById('m_down').value));
+            const totalRaw = document.getElementById('m_total').value;
+            const downRaw = document.getElementById('m_down').value;
             const months = document.getElementById('m_months').value || "0";
-            const monthly = unformatMoney(cleanToEngNum(document.getElementById('res_monthly_input').value));
+            const monthlyRaw = document.getElementById('res_monthly_input').value;
+
+            // استخراج تفاصيل الوحدة من الداتا المتاحة
+            const prop = dataStore.find(p => p.code === code) || {};
+            const size = prop.size || '-';
+            const floor = prop.floor || '-';
+            const finish = prop.finish || '-';
+
+            const totalNum = unformatMoney(cleanToEngNum(totalRaw));
+            const downNum = unformatMoney(cleanToEngNum(downRaw));
+            const monthlyNum = unformatMoney(cleanToEngNum(monthlyRaw));
+            const downPct = totalNum > 0 ? Math.round((downNum / totalNum) * 100) : 0;
 
             const mapPageUrl = "map.html"; 
             const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
-            const finalLink = `${baseUrl}/${mapPageUrl}?code=${encodeURIComponent(code)}&area=${encodeURIComponent(area)}&total=${total}&down=${down}&months=${months}&monthly=${monthly}&sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}`;
+            const finalLink = `${baseUrl}/${mapPageUrl}?code=${encodeURIComponent(code)}&area=${encodeURIComponent(area)}&total=${totalNum}&down=${downNum}&months=${months}&monthly=${monthlyNum}&sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}`;
             
-            navigator.clipboard.writeText(finalLink).then(() => {
-                alert("عاش يا بطل! 🚀\nتم توليد اللينك الذكي للماب بالحسبة دي ونسخه في جهازك بنجاح.\nابعته للعميل فوراً على الواتساب!");
+            const message = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة:
+
+📌 الكود: ${code}
+📍 العمارة/المنطقة: ${area}
+📐 المساحة: ${size} متر
+🏢 الدور: ${floor}
+✨ التشطيب: ${finish}
+
+💰 السعر الإجمالي: ${formatMoney(totalNum)} جنيهاً
+💵 المقدم: ${formatMoney(downNum)} ج (${downPct}%)
+📅 نظام السداد: قسط شهري بقيمة (${formatMoney(monthlyNum)} ج) على ${months} شهر.
+
+📍 المعاينة التفاعلية وموقع العمارة (اضغط على اللينك):
+${finalLink}
+
+شركة عقاري اليوم تسعد بخدمتكم دائماً 🏢✨`;
+
+            navigator.clipboard.writeText(message).then(() => {
+                alert("عاش يا بطل! 🚀\nتم توليد رسالة الواتساب باللينك الذكي للماب ونسخها في جهازك بنجاح.\nابعته للعميل فوراً على الواتساب!");
                 document.getElementById('calcModal').style.display='none';
             }).catch(err => {
-                alert("تم توليد اللينك، انسخه من هنا:\n" + finalLink);
+                alert("تم توليد اللينك، انسخه من هنا:\n\n" + message);
             });
         };
 
         window.renderTabs = () => { const container = document.getElementById('buildingTabs'); if(!container) return; const allB = [...new Set(dataStore.map(i => i.area))]; let sorted = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!sorted.includes(b)) sorted.push(b); }); let html = `<button onclick="setTab('الكل')" class="tab-btn ${activeTab === 'الكل' ? 'active' : ''}">الكل</button>`; html += sorted.map((b, idx) => `<button draggable="true" ondragstart="window.tabDragStart(event, ${idx})" ondragover="event.preventDefault()" ondrop="window.tabDrop(event, ${idx})" onclick="setTab('${b}')" class="tab-btn ${activeTab === b ? 'active' : ''}">${b}</button>`).join(''); html += `<button onclick="setTab('التجاري العام 🏢')" class="tab-btn ${activeTab === 'التجاري العام 🏢' ? 'active' : ''}" style="${activeTab === 'التجاري العام 🏢' ? '' : 'background:#334155;color:white;'}">التجاري العام 🏢</button>`; container.innerHTML = html; };
         
-        // تعديل الدالة لاستقبال العمارة وتخزينها للماب
         window.openCalc = (p, c, area) => { 
             document.getElementById('calcModal').style.display='flex'; 
             document.getElementById('m_code').innerText=c; 
@@ -1466,7 +1489,7 @@
                 </div>
             </div>
             
-            <button onclick="window.generateAndSendToMap()" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 mt-4 rounded-2xl font-black shadow-lg uppercase text-xs italic transition">🔗 إنشاء رابط الماب للعميل</button>
+            <button onclick="window.generateAndSendToMap()" class="w-full bg-green-600 hover:bg-green-700 text-white p-4 mt-4 rounded-2xl font-black shadow-lg uppercase text-xs italic transition">🔗 نسخ رسالة الواتساب للعميل باللينك</button>
             <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-slate-100 text-slate-500 p-4 mt-2 rounded-2xl font-black shadow-md uppercase text-xs italic transition">إغلاق</button>
         </div>
     </div>
