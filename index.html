@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خريطة العقارات التفاعلية</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background-color: #f4f6f9; color: #333; }
+        
+        /* تصميم الخريطة */
+        #map { flex: 1; height: 100%; z-index: 1; }
+        
+        /* لوحة التفاصيل الجانبية */
+        #details-sidebar {
+            width: 400px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1);
+            padding: 25px; overflow-y: auto; z-index: 2; display: none; /* مخفية لحد ما العميل يختار عمارة */
+        }
+        
+        /* ستايل مودرن وشبابي */
+        h2 { color: #1e3a8a; margin-bottom: 10px; font-size: 24px; }
+        .tag { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-left: 5px; }
+        .info-box { background: #f8fafc; border-right: 4px solid #3b82f6; padding: 15px; margin: 15px 0; border-radius: 4px; }
+        .apartment-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .price-tag { background: #f0fdf4; color: #166534; padding: 6px; border-radius: 4px; display: inline-block; font-weight: bold; margin-top: 8px; font-size: 14px; }
+        .close-btn { float: left; cursor: pointer; font-size: 20px; color: #94a3b8; }
+        .close-btn:hover { color: #334155; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="details-sidebar">
+        <span class="close-btn" onclick="closeSidebar()">✕</span>
+        <h2 id="b-name">اسم العمارة</h2>
+        <p id="b-loc" style="color: #64748b; font-size: 14px; margin-bottom: 15px;"></p>
+        
+        <div id="b-tags"></div>
+        
+        <div class="info-box">
+            <strong>الموقع المتميز:</strong>
+            <p id="b-desc"></p>
+        </div>
+
+        <h3 style="margin-top: 20px; color: #475569;">الأدوار والشقق المتاحة:</h3>
+        <div id="apartments-list"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. إحداثيات افتراضية قريبة من حدائق الأهرام البوابة الأولى
+        const centerLocation = [29.9730, 31.1150]; 
+        
+        // 2. تشغيل الخريطة والتركيز على المكان
+        const map = L.map('map').setView(centerLocation, 16);
+        
+        // شكل الخريطة المودرن من المورد المفتوح
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. بيانات عمارة 123ج اللي أنت جهزتها
+        const buildingData = {
+            name: "عمارة 123 ج",
+            coords: [29.9740, 31.1160], // نقطة افتراضية دقيقة ثالث نمرة من البوابة
+            locationDesc: "ثالث نمرة من البوابة الأولى",
+            types: ["إداري", "سكني", "تجاري"],
+            apartments: [
+                { size: "125 متر", view: "خلفي", floor: "الدور الثاني", rooms: "3 غرف + ريسبشن", payment: "قسط على 50 شهر" },
+                { size: "130 متر", view: "خلفي", floor: "الدور الثاني", rooms: "3 غرف + 2 حمام + ريسبشن", payment: "قسط على 50 شهر أو كاش بخصم" }
+            ]
+        };
+
+        // 4. إضافة دبوس (Marker) العمارة على الخريطة
+        const marker = L.marker(buildingData.coords).addTo(map);
+        marker.bindTooltip(buildingData.name, { permanent: true, direction: 'top' });
+
+        // 5. لما العميل يضغط على الدبوس، افتح اللوحة الجانبية واعرض البيانات
+        marker.on('click', function() {
+            document.getElementById('b-name').innerText = buildingData.name;
+            document.getElementById('b-loc').innerText = "📍 " + buildingData.locationDesc;
+            document.getElementById('b-desc').innerText = "عمارة ممتازة بموقع استراتيجي " + buildingData.locationDesc + ". صالحة للاستثمار والتشغيل الفوري.";
+            
+            // إضافة التاجات (إداري، سكني...)
+            const tagsDiv = document.getElementById('b-tags');
+            tagsDiv.innerHTML = '';
+            buildingData.types.forEach(t => {
+                tagsDiv.innerHTML += `<span class="tag">${t}</span>`;
+            });
+            
+            // إضافة الشقق المتاحة تفصيلياً
+            const aptList = document.getElementById('apartments-list');
+            aptList.innerHTML = '';
+            buildingData.apartments.forEach(apt => {
+                aptList.innerHTML += `
+                    <div class="apartment-card">
+                        <h4 style="color:#0f172a;">🏢 ${apt.floor} - شقة ${apt.size}</h4>
+                        <p style="font-size:13px; color:#64748b; margin-top:5px;">👁️ الإطلالة: ${apt.view} | 🛏️ التقسيم: ${apt.rooms}</p>
+                        <div class="price-tag">💳 نظام السداد: ${apt.payment}</div>
+                    </div>
+                `;
+            });
+            
+            // إظهار السايد بار
+            document.getElementById('details-sidebar').style.display = 'block';
+        });
+
+        function closeSidebar() {
+            document.getElementById('details-sidebar').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
