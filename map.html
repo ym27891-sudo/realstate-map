@@ -11,6 +11,10 @@
         
         #top-bar { background: #0f172a; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
         .top-btns-group { display: flex; gap: 10px; }
+        
+        /* الزر مخفي افتراضياً للحماية */
+        #admin-toggle-btn { display: none; }
+
         .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s ease; }
         .btn:hover { background: #2563eb; transform: translateY(-1px); }
         .btn-success { background: #10b981; }
@@ -216,6 +220,9 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- تم إضافة مكتبة الـ Auth للتحقق من هوية الأدمن وحماية الخريطة -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
@@ -229,6 +236,17 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+
+        // نظام الحماية: الزرار هيظهر بس لو كنت مسجل دخولك كأدمن من الانفنتوري
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (user) {
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                const role = (user.email.toLowerCase() === "ym27891@gmail.com") ? 'admin' : (userDoc.exists ? userDoc.data().role : 'sales');
+                if (role === 'admin') {
+                    document.getElementById('admin-toggle-btn').style.display = 'inline-block';
+                }
+            }
+        });
 
         const map = L.map('map').setView([29.9730, 31.1150], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
