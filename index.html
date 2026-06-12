@@ -119,7 +119,10 @@
                 }
                 document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
-                if(document.getElementById('adminMapBtn')) document.getElementById('adminMapBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+                
+                // زرار التعديل للأدمن فقط
+                if(document.getElementById('adminMapEditBtn')) document.getElementById('adminMapEditBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+
                 initAppListeners();
             } else {
                 document.getElementById('loginSection').classList.remove('hidden');
@@ -329,6 +332,18 @@
             currentAgentPhone = phone;
             currentAgentWhatsapp = ws;
             document.getElementById('nameSetupModal').style.display = 'none';
+        };
+
+        // فتح الخريطة كمعاينة (للسيلز)
+        window.openMap = () => {
+            if(!window.currentAgentName || currentAgentPhone === "01000000000") {
+                alert("برجاء إعداد بياناتك أولاً من زر 'بياناتي 👤' ليتم توليد اللينك باسمك!");
+                window.openProfileEdit();
+                return;
+            }
+            const mapPageUrl = "map.html"; 
+            const finalLink = `${mapPageUrl}?sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}`;
+            window.open(finalLink, '_blank');
         };
 
         window.handleStatusChangeTrigger = (id, value, code) => {
@@ -942,6 +957,39 @@
             }
         };
 
+        // دالة تطبيق خطة السداد الجاهزة
+        window.applyPresetPlan = (plan) => {
+            const totalInput = document.getElementById('m_total');
+            const downPctInput = document.getElementById('m_down_pct');
+            const monthsInput = document.getElementById('m_months');
+            const dAmountInput = document.getElementById('m_d_amount');
+            const dPctInput = document.getElementById('m_d_pct');
+            
+            let total = unformatMoney(cleanToEngNum(totalInput.value));
+            if(total <= 0) return alert('أدخل السعر الإجمالي أولاً لحساب خطة السداد!');
+
+            dAmountInput.value = ''; 
+            dPctInput.value = '';
+
+            if (plan === 'cash') {
+                downPctInput.value = 100;
+                monthsInput.value = 0;
+            } else if (plan === '50months_50') {
+                downPctInput.value = 50;
+                monthsInput.value = 50;
+            } else if (plan === '36months_40') {
+                downPctInput.value = 40;
+                monthsInput.value = 36;
+            } else if (plan === '24months_30') {
+                downPctInput.value = 30;
+                monthsInput.value = 24;
+            }
+            
+            if(plan !== '') {
+                window.runCalc('pct_input');
+            }
+        };
+
         window.addResale = async (e) => {
             e.preventDefault();
             const code = document.getElementById('rc').value.trim();
@@ -1072,7 +1120,6 @@
             }
         };
 
-        // التعديل الجديد هنا: توليد رسالة واتساب كاملة بدل اللينك لوحده
         window.generateAndSendToMap = () => {
             const code = document.getElementById('m_code').innerText;
             const area = document.getElementById('m_area').innerText || '';
@@ -1081,7 +1128,6 @@
             const months = document.getElementById('m_months').value || "0";
             const monthlyRaw = document.getElementById('res_monthly_input').value;
 
-            // استخراج تفاصيل الوحدة من الداتا المتاحة
             const prop = dataStore.find(p => p.code === code) || {};
             const size = prop.size || '-';
             const floor = prop.floor || '-';
@@ -1094,7 +1140,7 @@
 
             const mapPageUrl = "map.html"; 
             const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
-            const finalLink = `${baseUrl}/${mapPageUrl}?code=${encodeURIComponent(code)}&area=${encodeURIComponent(area)}&total=${totalNum}&down=${downNum}&months=${months}&monthly=${monthlyNum}&sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}`;
+            const finalLink = `${baseUrl}/${mapPageUrl}?sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}&code=${encodeURIComponent(code)}&area=${encodeURIComponent(area)}&total=${totalNum}&down=${downNum}&months=${months}&monthly=${monthlyNum}`;
             
             const message = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة:
 
@@ -1134,6 +1180,7 @@ ${finalLink}
             document.getElementById('m_d_pct').value='';
             document.getElementById('m_months').value='';
             document.getElementById('res_monthly_input').value='';
+            document.getElementById('preset_plans').value='';
             window.runCalc('price'); 
         };
         
@@ -1196,7 +1243,11 @@ ${finalLink}
             <div class="flex items-center gap-4 font-black">
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
                 
-                <button id="adminMapBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">خريطة المواقع 🗺️</button>
+                <!-- زر معاينة الخريطة (متاح للجميع لعمل اللينكات) -->
+                <button id="mapBtn" onclick="window.openMap()" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">معاينة الخريطة 🗺️</button>
+                
+                <!-- زر تعديل الخريطة (متاح للأدمن فقط) -->
+                <button id="adminMapEditBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition">تعديل الخريطة 🔧</button>
                 
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
                 <div class="relative cursor-pointer font-black" onclick="toggleNotif()">
@@ -1204,7 +1255,6 @@ ${finalLink}
                     <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-white font-black">0</span>
                 </div>
                 
-                <!-- الزر الجديد لتعديل البروفايل -->
                 <button onclick="window.openProfileEdit()" class="text-xs text-blue-600 font-black bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 uppercase italic transition hover:bg-blue-100">بياناتي 👤</button>
                 
                 <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl border border-red-100 uppercase italic hover:bg-red-100 transition">خروج</button>
@@ -1468,6 +1518,19 @@ ${finalLink}
             <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black">×</button>
             <h3 class="text-navy font-black mb-4 text-lg text-right italic underline underline-offset-4 font-black">حساب القسط: <span id="m_code"></span><span id="m_area" style="display:none;"></span></h3>
             <div class="space-y-4 font-black italic text-right">
+                
+                <!-- خطط السداد الجاهزة (الإضافة الجديدة) -->
+                <div class="border-b pb-2">
+                    <label class="text-[10px] text-indigo-600 block mb-1 pr-2 font-black">⚡ خطط سداد سريعة (اختر للتعبئة التلقائية)</label>
+                    <select id="preset_plans" onchange="window.applyPresetPlan(this.value)" class="w-full bg-indigo-50 border border-indigo-200 p-2 rounded-xl text-xs font-bold text-indigo-900 mb-3 outline-none cursor-pointer">
+                        <option value="">اختر خطة سداد...</option>
+                        <option value="cash">كاش (بدون مقدم/قسط)</option>
+                        <option value="50months_50">نظام 50 شهر (مقدم 50%)</option>
+                        <option value="36months_40">نظام 36 شهر (مقدم 40%)</option>
+                        <option value="24months_30">نظام 24 شهر (مقدم 30%)</option>
+                    </select>
+                </div>
+
                 <div>
                     <label class="text-[10px] text-slate-400 block mb-1 pr-2 uppercase font-black">إجمالي السعر</label>
                     <input id="m_total" type="text" oninput="window.runCalc('price')" class="w-full bg-slate-50 border p-2 rounded-lg eng-num font-extrabold text-base outline-none border-slate-200">
