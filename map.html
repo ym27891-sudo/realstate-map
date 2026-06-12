@@ -252,6 +252,36 @@
         let currentSizeTemplates = {}; 
         let currentAptOverrides = {};  
 
+        // دالة ضغط الصور لتجنب تخطي مساحة Firebase
+        window.compressImage = (file, maxSize = 800) => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        if (width > height && width > maxSize) {
+                            height *= maxSize / width;
+                            width = maxSize;
+                        } else if (height > maxSize) {
+                            width *= maxSize / height;
+                            height = maxSize;
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        // تحويل الصورة لـ JPEG مع تقليل الجودة لـ 60% لضمان أقصى ضغط
+                        resolve(canvas.toDataURL('image/jpeg', 0.6)); 
+                    };
+                };
+            });
+        };
+
         // سحب البيانات من الفايربيز
         db.collection('properties').onSnapshot((snap) => {
             inventoryProperties = snap.docs.map(d => ({id: d.id, ...d.data()}));
@@ -384,18 +414,15 @@
 
         window.updateTpl = (size, field, val) => { currentSizeTemplates[size][field] = val; };
         
-        window.handleTplImages = (input, size) => {
+        window.handleTplImages = async (input, size) => {
             const preview = document.getElementById(`tpl-img-preview-${size}`);
             if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => {
-                        currentSizeTemplates[size].images.push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result;
-                        preview.appendChild(img);
-                    };
-                    r.readAsDataURL(f);
-                });
+                for(let f of input.files) {
+                    const compressedBase64 = await window.compressImage(f);
+                    currentSizeTemplates[size].images.push(compressedBase64);
+                    const img = document.createElement('img'); img.src = compressedBase64;
+                    preview.appendChild(img);
+                }
             }
         };
 
@@ -425,18 +452,15 @@
         window.removeAptOverride = (code) => { delete currentAptOverrides[code]; window.renderAptOverrides(); };
         window.updateOverride = (code, field, val) => { currentAptOverrides[code][field] = val; };
         
-        window.handleOverrideImages = (input, code) => {
+        window.handleOverrideImages = async (input, code) => {
             const preview = document.getElementById(`override-img-preview-${code}`);
             if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => {
-                        currentAptOverrides[code].images.push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result;
-                        preview.appendChild(img);
-                    };
-                    r.readAsDataURL(f);
-                });
+                for(let f of input.files) {
+                    const compressedBase64 = await window.compressImage(f);
+                    currentAptOverrides[code].images.push(compressedBase64);
+                    const img = document.createElement('img'); img.src = compressedBase64;
+                    preview.appendChild(img);
+                }
             }
         };
 
@@ -474,17 +498,14 @@
             document.getElementById('admin-sidebar').style.display = 'block';
         };
 
-        window.handleBuildingImages = (input) => {
+        window.handleBuildingImages = async (input) => {
             if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => {
-                        currentSidebarBuildingImages.push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result;
-                        document.getElementById('b-images-preview').appendChild(img);
-                    };
-                    r.readAsDataURL(f);
-                });
+                for(let f of input.files) {
+                    const compressedBase64 = await window.compressImage(f);
+                    currentSidebarBuildingImages.push(compressedBase64);
+                    const img = document.createElement('img'); img.src = compressedBase64;
+                    document.getElementById('b-images-preview').appendChild(img);
+                }
             }
         };
 
@@ -504,12 +525,25 @@
             };
 
             let targetId = isEditingExisting ? editingBuildingId.toString() : Date.now().toString();
-            await db.collection('map_buildings').doc(targetId).set(mapData);
             
-            alert("تم حفظ إعدادات العمارة في الخريطة بنجاح!");
-            if(tempMarker) map.removeLayer(tempMarker);
-            tempMarker = null;
-            window.toggleAdminMode();
+            const saveBtn = document.querySelector('.btn-success');
+            const originalText = saveBtn.innerText;
+            saveBtn.innerText = "جاري الحفظ والضغط... ⏳";
+            saveBtn.disabled = true;
+
+            try {
+                await db.collection('map_buildings').doc(targetId).set(mapData);
+                alert("تم حفظ إعدادات العمارة في الخريطة بنجاح! 🎉");
+                if(tempMarker) map.removeLayer(tempMarker);
+                tempMarker = null;
+                window.toggleAdminMode();
+            } catch (error) {
+                console.error(error);
+                alert("⚠️ خطأ في الحفظ! غالباً حجم الصور لا يزال كبيراً جداً على Firebase. حاول مسح بعض الصور والمحاولة مجدداً.");
+            } finally {
+                saveBtn.innerText = originalText;
+                saveBtn.disabled = false;
+            }
         };
 
         window.toggleBuildingDeliveryInput = (val) => { document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none'; };
