@@ -117,15 +117,21 @@
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('appSection').classList.remove('hidden');
                 
-                // التحكم في الصلاحيات بناءً على الرتبة
+                // التحكم في الصلاحيات
                 document.getElementById('adminArea').classList.toggle('hidden', currentUserRole !== 'admin');
                 if(document.getElementById('adminResaleAdd')) document.getElementById('adminResaleAdd').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
-                
-                // الخريطة ظاهرة للكل، ولكن التعديل للأدمن فقط
-                if(document.getElementById('mapBtn')) document.getElementById('mapBtn').classList.remove('hidden');
-                if(document.getElementById('adminMapEditBtn')) document.getElementById('adminMapEditBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+                if(document.getElementById('adminPaymentBtn')) document.getElementById('adminPaymentBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+
+                // إظهار زر ماب الأدمن فقط وإخفاء زر السيلز، والعكس
+                if (currentUserRole === 'admin') {
+                    if(document.getElementById('mapBtn')) document.getElementById('mapBtn').classList.add('hidden');
+                    if(document.getElementById('adminMapEditBtn')) document.getElementById('adminMapEditBtn').classList.remove('hidden');
+                } else {
+                    if(document.getElementById('mapBtn')) document.getElementById('mapBtn').classList.remove('hidden');
+                    if(document.getElementById('adminMapEditBtn')) document.getElementById('adminMapEditBtn').classList.add('hidden');
+                }
 
                 initAppListeners();
             } else {
@@ -137,7 +143,6 @@
         function initAppListeners() {
             onSnapshot(doc(db, 'settings', 'buildingOrder'), (snap) => { if(snap.exists()) buildingOrder = snap.data().order || []; renderTabs(); });
             
-            // جلب أنظمة السداد من الداتا بيز
             onSnapshot(doc(db, 'settings', 'paymentPlans'), (snap) => { 
                 if(snap.exists()) {
                     paymentPlansStore = snap.data().plans || []; 
@@ -316,7 +321,6 @@
 
                 let statusCls = displayStatus === 'متاح' ? "bg-green-600 text-white" : displayStatus === 'تم الحجز' ? "bg-yellow-400 text-black shadow-sm" : "bg-red-600 text-white";
                 
-                // تمرير المساحة size للـ openCalc
                 htmlBuffer += `<tr class="border-b text-center text-sm bg-white hover:bg-blue-50 transition font-black">
                     <td class="p-4">${icon}</td>
                     <td class="p-4 text-navy text-right font-black italic">${item.code}</td>
@@ -369,7 +373,11 @@
             window.open(finalLink, '_blank');
         };
 
-        // --- دوال إدارة أنظمة السداد للأدمن ---
+        window.togglePaymentPlansModal = () => {
+            const m = document.getElementById('paymentPlansModal');
+            m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'flex' : 'none';
+        };
+
         window.saveCashDiscount = async () => {
             let v = parseFloat(document.getElementById('admin_cash_discount').value) || 0;
             await updateDoc(doc(db, 'settings', 'paymentPlans'), { cashDiscount: v });
@@ -403,13 +411,12 @@
             const list = document.getElementById('admin_plans_list');
             if(!list) return;
             list.innerHTML = paymentPlansStore.map(p => `
-                <div class="bg-white border border-indigo-200 px-3 py-1.5 rounded-full text-[10px] text-indigo-900 flex items-center gap-2 shadow-sm font-black">
-                    ${p.name} (${p.downPct}% مقدم - ${p.months} شهر)
-                    <span onclick="window.deletePaymentPlan('${p.id}')" class="text-red-500 cursor-pointer text-xs hover:scale-110 ml-1">✖</span>
+                <div class="bg-purple-50 border border-purple-200 px-3 py-2 rounded-lg text-xs text-purple-900 flex items-center justify-between shadow-sm font-black w-full">
+                    <span>📅 ${p.name} <span class="text-slate-500 font-normal ml-1">(${p.downPct}% مقدم - ${p.months} شهر)</span></span>
+                    <button onclick="window.deletePaymentPlan('${p.id}')" class="text-red-500 hover:text-red-700 bg-white border px-2 py-0.5 rounded text-[10px]">حذف</button>
                 </div>
             `).join('');
         };
-        // ----------------------------------------
 
         window.handleStatusChangeTrigger = (id, value, code) => {
             if (value === 'تم الحجز' || value === 'تم البيع') {
@@ -1084,7 +1091,7 @@
                 let newTotal = unitPrice * size;
                 document.getElementById('m_total').value = formatMoney(newTotal);
                 document.getElementById('m_original_price').value = newTotal; 
-                document.getElementById('preset_plans').value = ''; // إلغاء الخطة لو السعر اتغير مانيوال
+                document.getElementById('preset_plans').value = ''; 
                 window.runCalc('price');
             }
         };
@@ -1349,10 +1356,13 @@ ${finalLink}
             <div class="flex items-center gap-4 font-black flex-wrap justify-end">
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
                 
-                <!-- زر معاينة الخريطة (متاح للجميع لعمل اللينكات) -->
+                <!-- زر إعدادات السداد للأدمن فقط (نقلناه هنا عشان ننضف الواجهة) -->
+                <button id="adminPaymentBtn" onclick="window.togglePaymentPlansModal()" class="hidden bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-purple-100 transition">أنظمة السداد ⚙️</button>
+
+                <!-- زر معاينة الخريطة للسيلز فقط -->
                 <button id="mapBtn" onclick="window.openMap()" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">معاينة الخريطة 🗺️</button>
                 
-                <!-- زر تعديل الخريطة (متاح للأدمن فقط) -->
+                <!-- زر تعديل الخريطة للأدمن فقط -->
                 <button id="adminMapEditBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition">تعديل الخريطة 🔧</button>
                 
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
@@ -1400,30 +1410,6 @@ ${finalLink}
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- لوحة التحكم الجديدة لأنظمة السداد وخصم الكاش -->
-            <div class="bg-indigo-50 p-4 rounded-2xl shadow-md border border-indigo-200 mb-4">
-                <h3 class="text-indigo-900 text-sm mb-3 font-black">⚙️ إدارة أنظمة السداد السريعة وخصم الكاش</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                        <label class="text-[10px] text-slate-500 block mb-2 font-black">نسبة خصم الكاش (%) المطبقة في الحاسبة</label>
-                        <div class="flex gap-2">
-                            <input id="admin_cash_discount" type="number" class="w-full border p-2.5 rounded-lg text-xs font-black outline-none focus:border-navy eng-num" placeholder="مثال: 10">
-                            <button onclick="window.saveCashDiscount()" class="bg-indigo-600 hover:bg-indigo-700 transition text-white px-4 py-2.5 rounded-lg text-xs shadow-sm font-black">حفظ الخصم</button>
-                        </div>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                        <label class="text-[10px] text-slate-500 block mb-2 font-black">إضافة نظام سداد جديد للقائمة</label>
-                        <div class="flex gap-2">
-                            <input id="admin_plan_name" type="text" placeholder="اسم النظام" class="w-full border p-2 rounded-lg text-[10px] font-black outline-none bg-slate-50">
-                            <input id="admin_plan_down" type="number" placeholder="المقدم %" class="w-20 border p-2 rounded-lg text-[10px] font-black outline-none bg-slate-50 text-center eng-num">
-                            <input id="admin_plan_months" type="number" placeholder="الشهور" class="w-20 border p-2 rounded-lg text-[10px] font-black outline-none bg-slate-50 text-center eng-num">
-                            <button onclick="window.addPaymentPlan()" class="bg-green-600 hover:bg-green-700 transition text-white px-3 py-2 rounded-lg text-[10px] shadow-sm font-black">إضافة</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="admin_plans_list" class="mt-4 flex flex-wrap gap-2"></div>
             </div>
         </div>
 
@@ -1475,6 +1461,41 @@ ${finalLink}
             <input id="setupAgentPhoneInput" type="text" placeholder="رقم الاتصال المباشر (مثال: 01012345678)" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-3">
             <input id="setupAgentWsInput" type="text" placeholder="رقم الواتساب بمفتاح الدولة (مثال: 201012345678)" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-4">
             <input type="button" onclick="window.saveAgentNameSetup()" value="حفظ وتفعيل السيستم" class="w-full bg-navy text-white p-3 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition cursor-pointer">
+        </div>
+    </div>
+
+    <!-- مودال أنظمة السداد للأدمن (التصميم الجديد المخفي) -->
+    <div id="paymentPlansModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10012]">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-lg border-t-8 border-purple-600 modal-animate text-right font-black">
+            <div class="flex justify-between items-center border-b pb-3 mb-4">
+                <h3 class="text-purple-900 font-black text-base">⚙️ إدارة أنظمة السداد السريعة وخصم الكاش</h3>
+                <button onclick="window.togglePaymentPlansModal()" class="text-slate-400 hover:text-red-500 font-bold text-xl transition">✕</button>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="bg-slate-50 p-4 rounded-xl shadow-sm border border-slate-200">
+                    <label class="text-[10px] text-slate-500 block mb-2 font-black">نسبة خصم الكاش (%) المطبقة في الحاسبة</label>
+                    <div class="flex gap-2">
+                        <input id="admin_cash_discount" type="number" class="w-full border p-2.5 rounded-lg text-xs font-black outline-none focus:border-purple-600 eng-num text-center" placeholder="مثال: 10">
+                        <button onclick="window.saveCashDiscount()" class="bg-purple-600 hover:bg-purple-700 transition text-white px-4 py-2.5 rounded-lg text-xs shadow-sm font-black whitespace-nowrap">حفظ الخصم</button>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 p-4 rounded-xl shadow-sm border border-slate-200">
+                    <label class="text-[10px] text-slate-500 block mb-2 font-black">إضافة نظام سداد جديد للقائمة</label>
+                    <div class="flex flex-wrap gap-2">
+                        <input id="admin_plan_name" type="text" placeholder="اسم النظام" class="flex-1 min-w-[120px] border p-2.5 rounded-lg text-xs font-black outline-none bg-white">
+                        <input id="admin_plan_down" type="number" placeholder="المقدم %" class="w-20 border p-2.5 rounded-lg text-xs font-black outline-none bg-white text-center eng-num">
+                        <input id="admin_plan_months" type="number" placeholder="الشهور" class="w-20 border p-2.5 rounded-lg text-xs font-black outline-none bg-white text-center eng-num">
+                        <button onclick="window.addPaymentPlan()" class="bg-green-600 hover:bg-green-700 transition text-white px-4 py-2.5 rounded-lg text-xs shadow-sm font-black whitespace-nowrap">إضافة</button>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-2 font-black">الأنظمة الحالية (تظهر في الحاسبة للسيلز):</label>
+                    <div id="admin_plans_list" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1651,7 +1672,6 @@ ${finalLink}
 
             <div class="space-y-4 font-black italic text-right">
                 
-                <!-- خطط السداد الجاهزة (الإضافة الجديدة) -->
                 <div class="border-b pb-2">
                     <label class="text-[10px] text-indigo-600 block mb-1 pr-2 font-black">⚡ خطط سداد سريعة (اختر للتعبئة التلقائية)</label>
                     <select id="preset_plans" onchange="window.applyPresetPlan(this.value)" class="w-full bg-indigo-50 border border-indigo-200 p-2 rounded-xl text-xs font-bold text-indigo-900 mb-1 outline-none cursor-pointer">
