@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خريطة العقارات التفاعلية الفخمة</title>
+    <title>منظومة إدارة الخرائط العقارية الاحترافية</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -15,96 +15,138 @@
         .btn-success { background: #10b981; }
         .btn-success:hover { background: #059669; }
         .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
         .btn-admin-active { background: #ef4444 !important; }
 
         #main-container { display: flex; flex: 1; height: calc(100vh - 60px); width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
+        /* النوافذ المنبثقة */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        
         .modal-content { background: white; width: 90%; max-width: 700px; max-height: 85vh; border-radius: 20px; padding: 30px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9) translateY(20px); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
         .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
-        
-        .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; transition: color 0.2s; }
-        .modal-close:hover { color: #1e293b; }
+        .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; }
 
         .animated-section { transition: all 0.3s ease; opacity: 1; transform: translateX(0); }
         .animated-section.fade-out { opacity: 0; transform: translateX(50px); display: none; }
         .animated-section.fade-in { animation: slideIn 0.4s forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-50px); } to { opacity: 1; transform: translateX(0); } }
 
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-50px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
+        .floor-btn { background: #f1f5f9; color: #1e293b; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; cursor: pointer; text-align: center; font-size: 16px; font-weight: bold; width: 100%; margin-bottom: 10px; }
+        .floor-btn:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
 
-        .floor-btn { background: #f1f5f9; color: #1e293b; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; cursor: pointer; text-align: center; font-size: 16px; font-weight: bold; transition: all 0.2s; margin-bottom: 10px; display: block; width: 100%; }
-        .floor-btn:hover { background: #3b82f6; color: white; border-color: #3b82f6; transform: scale(1.02); }
-
-        .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
-        .size-card:hover { border-color: #10b981; background: #f0fdf4; transform: scale(1.01); }
+        .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .size-card:hover { border-color: #10b981; background: #f0fdf4; }
 
         .tag { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; margin-left: 6px; }
-        
-        /* تاغات الحالة الجديدة للعميل */
         .status-ready { display: inline-block; background: #dcfce7; color: #166534; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
         .status-construction { display: inline-block; background: #ffedd5; color: #9a3412; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
         
-        .price-badge { background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 15px; }
-        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-top: 8px; display: inline-block; border: 1px solid #e2e8f0; }
+        .price-badge { background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 16px; }
+        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-top: 8px; display: inline-block; }
 
-        .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; }
-        .gallery img { width: 140px; height: 100px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 2px solid #e2e8f0; }
-        .main-view-img { width: 100%; height: 260px; object-fit: cover; border-radius: 15px; margin-bottom: 15px; }
-
-        #admin-sidebar { width: 400px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1); padding: 25px; overflow-y: auto; z-index: 5; display: none; }
+        /* الألبومات المطور لروئية كذا صورة */
+        .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
+        .gallery img { width: 120px; height: 90px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 2px solid #e2e8f0; transition: transform 0.2s; }
+        .gallery img:hover { transform: scale(1.05); border-color: #3b82f6; }
+        
+        /* لوحة التحكم الجانبية للتعديل والإضافة */
+        #admin-sidebar { width: 420px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1); padding: 25px; overflow-y: auto; z-index: 5; display: none; }
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
         .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
-        .nested-box { border: 2px dashed #3b82f6; padding: 15px; margin-top: 15px; background: #f8fafc; border-radius: 10px; }
+        .nested-box { border: 2px dashed #3b82f6; padding: 15px; margin-top: 15px; background: #f8fafc; border-radius: 10px; position: relative; }
+        .apt-edit-box { background: white; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; position: relative; }
+        
+        .image-preview { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        .image-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
+        
+        /* أزرار الحذف السريعة داخل لوحة التحكم */
+        .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .delete-icon-btn:hover { background: #ef4444; color: white; }
+        
+        /* أزرار الاتصال الجديدة للعميل */
+        .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
+        .btn-call { background: #2563eb; }
+        .btn-whatsapp { background: #16a34a; }
     </style>
 </head>
 <body>
 
     <div id="top-bar">
-        <h2>منظومة الخرائط العقارية التفاعلية 🏢</h2>
-        <button id="admin-toggle-btn" class="btn" onclick="toggleAdminMode()">🔧 وضع إضافة العماير</button>
+        <h2>منظومة إدارة الخرائط العقارية الذكية 🏢</h2>
+        <button id="admin-toggle-btn" class="btn" onclick="toggleAdminMode()">🔧 وضع التعديل وإضافة العماير</button>
     </div>
 
     <div id="main-container">
         <div id="map"></div>
 
-        <!-- سايد بار الإدخال للأدمن -->
+        <!-- لوحة تحكم الأدمن الجانبية المتكاملة (إضافة وتعديل) -->
         <div id="admin-sidebar">
-            <span style="float:left; cursor:pointer;" onclick="closeAdminSidebar()">✕</span>
-            <h3 style="margin-bottom:15px;">➕ إضافة عمارة جديدة</h3>
-            <div class="form-group"><label>اسم العمارة:</label><input type="text" id="form-b-name" placeholder="مثال: عمارة 123 ج"></div>
-            <div class="form-group"><label>الوصف:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: ثالث نمرة من البوابة"></textarea></div>
+            <span style="float:left; cursor:pointer; font-weight:bold; font-size:18px;" onclick="closeAdminSidebar()">✕</span>
+            <h3 id="admin-sidebar-title" style="margin-bottom:15px; color:#1e3a8a;">➕ إضافة عمارة جديدة</h3>
+            
+            <div class="form-group"><label>اسم أو رقم العمارة:</label><input type="text" id="form-b-name" placeholder="مثال: عمارة 123 ج"></div>
+            <div class="form-group"><label>الوصف والموقع:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: ثالث نمرة من البوابة الأولى"></textarea></div>
+            
+            <!-- التعديل الجديد: تحديد حالة الإنشاء للعمارة بالكامل هنا -->
             <div class="form-group">
-                <label>📸 صور واجهة العمارة:</label>
-                <input type="file" id="form-b-images" multiple accept="image/*" onchange="handleBuildingImages(this)">
+                <label>🏗️ حالة إنشاء العمارة ككل:</label>
+                <select id="form-b-status" onchange="toggleBuildingDeliveryInput(this.value)">
+                    <option value="مبنية">مبنية (جاهزة للاستلام الفوري)</option>
+                    <option value="تحت_الإنشاء">تحت الإنشاء</option>
+                </select>
             </div>
+            <div class="form-group" id="form-b-delivery-group" style="display:none;">
+                <label>📅 موعد تسليم العمارة المتوقع:</label>
+                <input type="text" id="form-b-delivery" placeholder="مثال: ديسمبر 2026">
+            </div>
+
+            <div class="form-group">
+                <label>📸 صور واجهة ومداخل العمارة (يمكنك اختيار كذا صورة):</label>
+                <input type="file" id="form-b-images" multiple accept="image/*" onchange="handleBuildingImages(this)">
+                <div id="b-images-preview" class="image-preview"></div>
+            </div>
+            
+            <hr style="margin: 20px 0; border-top: 2px solid #e2e8f0;">
+            <h4 style="color:#0f172a;">🏢 الطوابق والشقق المتاحة:</h4>
             <div id="form-floors-container"></div>
             <button class="btn" style="background:#10b981; margin-top:10px; width:100%" onclick="addFloorForm()">➕ إضافة دور جديد</button>
-            <button class="btn btn-success" style="width:100%; margin-top:20px; padding:12px;" onclick="saveNewBuilding()">💾 حفظ العمارة بالكامل</button>
+            
+            <!-- أزرار الحفظ والحذف -->
+            <button class="btn btn-success" style="width:100%; margin-top:25px; padding:14px; font-size:16px;" onclick="saveBuildingFromSidebar()">💾 حفظ البيانات وتحديث الخريطة</button>
+            <button class="btn btn-danger" id="sidebar-delete-btn" style="width:100%; margin-top:10px; padding:10px; display:none;">❌ حذف هذه العمارة تماماً</button>
         </div>
     </div>
 
-    <!-- 🌟 النافذة المنبثقة الأولى (العمارة والأدوار) -->
+    <!-- 🌟 النافذة الأولى (عرض العمارة والأدوار للعميل) -->
     <div id="building-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content">
             <span class="modal-close" onclick="closeBuildingModal()">✕</span>
-            <div id="modal-building-img-container"></div>
-            <h2 id="modal-b-name" style="font-size: 28px; margin-bottom: 5px;">اسم العمارة</h2>
-            <p id="modal-b-loc" style="color: #64748b; margin-bottom: 15px; font-size: 15px;"></p>
-            <div id="modal-b-tags" style="margin-bottom: 20px;"></div>
             
-            <div id="floors-section" class="animated-section">
-                <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة الشقق المتاحة:</h3>
+            <!-- ألبوم صور واجهة العمارة والمداخل المتعددة -->
+            <h3 style="font-size:14px; color:#64748b; margin-bottom:5px;">📸 ألبوم صور العمارة والمدخل:</h3>
+            <div id="modal-b-gallery" class="gallery"></div>
+            
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-top:10px;">
+                <div>
+                    <h2 id="modal-b-name" style="font-size: 28px;">اسم العمارة</h2>
+                    <p id="modal-b-loc" style="color: #64748b; font-size: 15px; margin-top:4px;"></p>
+                </div>
+                <!-- مكان ظهور حالة الإنشاء والتسليم للعمارة بالكامل -->
+                <div id="modal-b-status-zone" style="text-align:left;"></div>
+            </div>
+            
+            <div id="modal-b-desc-box" class="info-box" style="margin-top:15px;"></div>
+            
+            <div id="floors-section" class="animated-section" style="margin-top:20px;">
+                <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
                 <div id="modal-floors-list"></div>
             </div>
 
-            <div id="sizes-section" class="animated-section fade-out">
+            <div id="sizes-section" class="animated-section fade-out" style="margin-top:20px;">
                 <button class="btn" style="background:#64748b; margin-bottom:15px; padding:6px 12px;" onclick="goBackToFloors()">⬅️ العودة للأدوار</button>
                 <h3 id="selected-floor-title" style="margin-bottom: 15px; font-size: 18px; color: #475569;">المساحات المتاحة:</h3>
                 <div id="modal-sizes-list"></div>
@@ -112,32 +154,37 @@
         </div>
     </div>
 
-    <!-- 🌟 النافذة المنبثقة الثانية (كارت الشقة مع الميزات الجديدة) -->
+    <!-- 🌟 النافذة الثانية (كارت الشقة الفخم مع الأفكار الجديدة) -->
     <div id="apartment-modal" class="modal-overlay" onclick="closeModal(this, event)">
-        <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #10b981;">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #3b82f6;">
             <span class="modal-close" onclick="closeApartmentModal()">✕</span>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة</h2>
-                <!-- مكان ظهور حالة الشقة للعميل -->
-                <div id="apt-modal-status-zone"></div>
-            </div>
+            <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة الفاخرة</h2>
             <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
             
+            <!-- ألبوم صور الشقة الداخلي المتعدد -->
+            <h3 style="font-size:13px; color:#64748b; margin-bottom:4px;">📸 صور الشقة من الداخل:</h3>
             <div id="apt-modal-gallery" class="gallery"></div>
             
             <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
-                <!-- مكان ظهور موعد التسليم لو تحت الإنشاء -->
-                <div id="apt-modal-delivery-zone" style="margin-bottom: 12px; display:none; background:#fff7ed; padding:10px; border-right:4px solid #ea580c; border-radius:4px;"></div>
-                
-                <p style="margin-bottom: 8px; font-size: 16px;">👁️ <strong>الإطلالة الكلية:</strong> <span id="apt-modal-view"></span></p>
-                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>الالتقسيم الداخلي للغرف:</strong> <span id="apt-modal-rooms"></span></p>
-                <div style="margin-top: 15px;">
+                <p style="margin-bottom: 8px; font-size: 16px;">👁️ <strong>الإطلالة:</strong> <span id="apt-modal-view"></span></p>
+                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>التقسيم وغرف النوم:</strong> <span id="apt-modal-rooms"></span></p>
+                <div style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
                     <span id="apt-modal-price" class="price-badge"></span>
                 </div>
                 <span id="apt-modal-payment" class="payment-badge"></span>
+                
+                <!-- الفكرة الجديدة: حاسبة الأقساط التفاعلية للعميل -->
+                <div id="calculator-zone" style="margin-top:15px; padding-top:15px; border-top:1px dashed #cbd5e1; font-size:13px; color:#475569;">
+                    <button class="btn" style="background:#0f172a; padding:6px 12px; width:100%; font-size:13px;" onclick="calculateFinancing()">📊 احسب قسط الشقة والمقدم فوراً</button>
+                    <div id="calc-results" style="margin-top:10px; display:none; background:white; padding:10px; border-radius:6px; border:1px solid #e2e8f0;"></div>
+                </div>
             </div>
             
-            <button class="btn btn-success" style="width: 100%; padding: 12px; font-size: 16px;" onclick="closeApartmentModal()">👍 مهتم، العودة للخريطة</button>
+            <!-- الفكرة الجديدة: أزرار التواصل المباشر السريعة -->
+            <div class="action-buttons">
+                <a href="tel:01000000000" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
+                <a href="https://wa.me/201000000000?text=أنا مهتم بشقة بمساحة معينة" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
+            </div>
         </div>
     </div>
 
@@ -149,22 +196,27 @@
         let adminMode = false;
         let tempMarker = null;
         let currentTempCoords = null;
-        let uploadedBuildingImages = [];
-        let uploadedAptImagesMap = {};
-        let currentSelectedBuilding = null;
+        let isEditingExisting = false;
+        let editingBuildingId = null;
 
-        // الداتا الافتراضية متعدلة بالحالة الجديدة
+        // المصفوفات المؤقتة لحفظ الصور كـ كود نصي
+        let currentSidebarBuildingImages = [];
+        let currentSidebarAptImagesMap = {}; 
+
+        // الداتا الأساسية والكاملة للسيستم
         let allBuildings = [
             {
                 id: 1,
                 name: "عمارة 123 ج",
                 coords: [29.9740, 31.1160],
-                locationDesc: "ثالث نمرة من البوابة الأولى - عمارة تجاري سكني إداري متميزة",
-                types: ["إداري", "سكني", "تجاري"],
+                locationDesc: "ثالث نمرة من البوابة الأولى",
+                status: "تجاري سكني إداري متميزة",
+                buildingStatus: "تحت_الإنشاء",
+                deliveryDate: "ديسمبر 2026",
                 images: [],
                 apartments: [
-                    { floor: "الدور الثاني", size: "125 متر", view: "خلفي على لاند سكيب", rooms: "3 غرف + ريسبشن كبير", price: "2,000,000 ج.م", payment: "مقدم 10% وقسط على 50 شهر", status: "مبنية", deliveryDate: "", images: [] },
-                    { floor: "الدور الثاني", size: "130 متر", view: "خلفي مميز", rooms: "3 غرف + 2 حمام", price: "2,150,000 ج.م", payment: "قسط على 50 شهر", status: "تحت_الإنشاء", deliveryDate: "ديسمبر 2026", images: [] }
+                    { id: "apt_1", floor: "الدور الثاني", size: "125 متر", view: "خلفي على لاند سكيب", rooms: "3 غرف + ريسبشن كبير", price: "2,000,000", payment: "50 شهر" },
+                    { id: "apt_2", floor: "الدور الثاني", size: "130 متر", view: "خلفي مميز", rooms: "3 غرف + 2 حمام", price: "2,150,000", payment: "50 شهر" }
                 ]
             }
         ];
@@ -174,23 +226,288 @@
             allBuildings.forEach((b) => {
                 const marker = L.marker(b.coords).addTo(map);
                 marker.bindTooltip(b.name, { permanent: true, direction: 'top' });
-                marker.on('click', function() { if(!adminMode) openBuildingModal(b); else openAdminDelete(b); });
+                marker.on('click', function() { 
+                    if(!adminMode) openBuildingModal(b); 
+                    else openAdminEditSidebar(b); // لو أدمن يفتح فورمة التعديل مباشرة!
+                });
             });
         }
 
+        function toggleBuildingDeliveryInput(val) {
+            document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none';
+        }
+
+        // وضع الأدمن والتحكم
+        function toggleAdminMode() {
+            adminMode = !adminMode;
+            const btn = document.getElementById('admin-toggle-btn');
+            if(adminMode) {
+                btn.innerText = "🛑 إلغاء وضع التعديل";
+                btn.classList.add('btn-admin-active');
+                alert("وضع التحكم شغال:\n- لإضافة عمارة: اضغط على أي مكان فارغ في الخريطة.\n- لتعديل عمارة أو حذفها: اضغط على دبوس العمارة مباشرة.");
+            } else {
+                btn.innerText = "🔧 وضع التعديل وإضافة العماير";
+                btn.classList.remove('btn-admin-active');
+                closeAdminSidebar();
+            }
+        }
+
+        // الضغط على الخريطة لإنشاء عمارة جديدة من الصفر
+        map.on('click', function(e) {
+            if (!adminMode) return;
+            isEditingExisting = false;
+            editingBuildingId = null;
+            currentTempCoords = [e.latlng.lat, e.latlng.lng];
+            
+            if (tempMarker) map.removeLayer(tempMarker);
+            tempMarker = L.marker(currentTempCoords).addTo(map);
+
+            // تصفير وتجهيز فورمة الإدخال الجانبية
+            document.getElementById('admin-sidebar-title').innerText = "➕ إضافة عمارة جديدة";
+            document.getElementById('form-b-name').value = '';
+            document.getElementById('form-b-desc').value = '';
+            document.getElementById('form-b-status').value = 'مبنية';
+            document.getElementById('form-b-delivery').value = '';
+            document.getElementById('form-b-delivery-group').style.display = 'none';
+            document.getElementById('b-images-preview').innerHTML = '';
+            document.getElementById('form-floors-container').innerHTML = '';
+            document.getElementById('sidebar-delete-btn').style.display = 'none';
+            
+            currentSidebarBuildingImages = [];
+            currentSidebarAptImagesMap = {};
+
+            document.getElementById('admin-sidebar').style.display = 'block';
+        });
+
+        // 🛠️ فتح فورمة التعديل لعمارة موجودة بالفعل بكامل بياناتها وصورها
+        function openAdminEditSidebar(b) {
+            isEditingExisting = true;
+            editingBuildingId = b.id;
+            currentTempCoords = b.coords;
+
+            document.getElementById('admin-sidebar-title').innerText = `📝 تعديل بيانات: ${b.name}`;
+            document.getElementById('form-b-name').value = b.name;
+            document.getElementById('form-b-desc').value = b.locationDesc;
+            document.getElementById('form-b-status').value = b.buildingStatus || 'مبنية';
+            document.getElementById('form-b-delivery').value = b.deliveryDate || '';
+            toggleBuildingDeliveryInput(b.buildingStatus || 'مبنية');
+
+            // تحميل الصور القديمة للعمارة في المعاينة
+            currentSidebarBuildingImages = b.images || [];
+            const bPreview = document.getElementById('b-images-preview');
+            bPreview.innerHTML = '';
+            currentSidebarBuildingImages.forEach(src => {
+                bPreview.innerHTML += `<img src="${src}"/>`;
+            });
+
+            // إعادة بناء الأدوار والشقق للتعديل أو الحذف
+            const container = document.getElementById('form-floors-container');
+            container.innerHTML = '';
+            currentSidebarAptImagesMap = {};
+
+            // تجميع الشقق حسب الدور
+            const floorsMap = {};
+            b.apartments.forEach(apt => {
+                if(!floorsMap[apt.floor]) floorsMap[apt.floor] = [];
+                floorsMap[apt.floor].push(apt);
+            });
+
+            let fIndex = 0;
+            for(let floorName in floorsMap) {
+                fIndex++;
+                const floorId = `floor-${fIndex}`;
+                const floorHtml = `
+                    <div class="nested-box" id="${floorId}">
+                        <button class="delete-icon-btn" style="position:absolute; top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
+                        <label>الدور:</label><input type="text" class="floor-name-input" value="${floorName}">
+                        <div class="apts-box"></div>
+                        <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
+                    </div>`;
+                container.insertAdjacentHTML('beforeend', floorHtml);
+
+                const aptsBox = document.getElementById(floorId).querySelector('.apts-box');
+                floorsMap[floorName].forEach(apt => {
+                    let aptUid = apt.id || `uid-${Math.random()}`;
+                    currentSidebarAptImagesMap[aptUid] = apt.images || [];
+                    
+                    const aptHtml = `
+                        <div class="apt-edit-box" id="${aptUid}">
+                            <button class="delete-icon-btn" style="position:absolute; top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
+                            <input type="text" class="apt-size" placeholder="المساحة" value="${apt.size}">
+                            <input type="text" class="apt-price" placeholder="السعر بدون فواصل" value="${apt.price.replace(/,/g, '')}" style="margin-top:4px;">
+                            <input type="text" class="apt-view" placeholder="الإطلالة" value="${apt.view}" style="margin-top:4px;">
+                            <input type="text" class="apt-rooms" placeholder="التقسيم والفرغ" value="${apt.rooms}" style="margin-top:4px;">
+                            <input type="text" class="apt-payment" placeholder="نظام السداد" value="${apt.payment}" style="margin-top:4px;">
+                            <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px;">
+                            <div class="image-preview">${(apt.images || []).map(img => `<img src="${img}"/>`).join('')}</div>
+                        </div>`;
+                    aptsBox.insertAdjacentHTML('beforeend', aptHtml);
+                });
+            }
+
+            // إظهار زرار الحذف الكلي للعمارة
+            const delBtn = document.getElementById('sidebar-delete-btn');
+            delBtn.style.display = 'block';
+            delBtn.onclick = function() {
+                if(confirm(`حذف عمارة ${b.name} بالكامل؟`)) {
+                    allBuildings = allBuildings.filter(x => x.id !== b.id);
+                    closeAdminSidebar();
+                    renderMarkers();
+                }
+            };
+
+            document.getElementById('admin-sidebar').style.display = 'block';
+        }
+
+        // تزويد دور فارغ جديد
+        let floorCount = 100;
+        function addFloorForm() {
+            floorCount++;
+            const container = document.getElementById('form-floors-container');
+            const floorId = `floor-${floorCount}`;
+            const html = `
+                <div class="nested-box" id="${floorId}">
+                    <button class="delete-icon-btn" style="position:absolute; top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
+                    <label>الدور:</label><input type="text" class="floor-name-input" placeholder="مثال: الدور الثالث">
+                    <div class="apts-box"></div>
+                    <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
+                </div>`;
+            container.insertAdjacentHTML('beforeend', html);
+            addAptForm(floorId);
+        }
+
+        function removeFloorElement(id) { document.getElementById(id).remove(); }
+
+        let aptCount = 100;
+        function addAptForm(floorId) {
+            aptCount++;
+            const box = document.getElementById(floorId).querySelector('.apts-box');
+            const aptUid = `uid-${aptCount}`;
+            currentSidebarAptImagesMap[aptUid] = [];
+            
+            const html = `
+                <div class="apt-edit-box" id="${aptUid}">
+                    <button class="delete-icon-btn" style="position:absolute; top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
+                    <input type="text" class="apt-size" placeholder="المساحة: 125 متر" style="margin-top:4px;">
+                    <input type="text" class="apt-price" placeholder="السعر الإجمالي (أرقام فقط): 2000000" style="margin-top:4px;">
+                    <input type="text" class="apt-view" placeholder="الإطلالة: واجهة أمامية" style="margin-top:4px;">
+                    <input type="text" class="apt-rooms" placeholder="التقسيم: 3 غرف + ريسبشن" style="margin-top:4px;">
+                    <input type="text" class="apt-payment" placeholder="نظام السداد: قسط على 50 شهر" style="margin-top:4px;">
+                    <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px; width:100%;">
+                    <div class="image-preview"></div>
+                </div>`;
+            box.insertAdjacentHTML('beforeend', html);
+        }
+
+        // معالجة وحفظ الصور المتعددة
+        function handleBuildingImages(input) {
+            if(input.files) {
+                Array.from(input.files).forEach(f => {
+                    const r = new FileReader();
+                    r.onload = (e) => {
+                        currentSidebarBuildingImages.push(e.target.result);
+                        const img = document.createElement('img'); img.src = e.target.result;
+                        document.getElementById('b-images-preview').appendChild(img);
+                    };
+                    r.readAsDataURL(f);
+                });
+            }
+        }
+
+        function saveAptImages(input, uid) {
+            const preview = input.nextElementSibling;
+            if(input.files) {
+                Array.from(input.files).forEach(f => {
+                    const r = new FileReader();
+                    r.onload = (e) => {
+                        if(!currentSidebarAptImagesMap[uid]) currentSidebarAptImagesMap[uid] = [];
+                        currentSidebarAptImagesMap[uid].push(e.target.result);
+                        const img = document.createElement('img'); img.src = e.target.result;
+                        preview.appendChild(img);
+                    };
+                    r.readAsDataURL(f);
+                });
+            }
+        }
+
+        // حفظ النهائي للتعديل أو الإضافة الجديدة
+        function saveBuildingFromSidebar() {
+            const name = document.getElementById('form-b-name').value;
+            const desc = document.getElementById('form-b-desc').value;
+            const bStatus = document.getElementById('form-b-status').value;
+            const bDelivery = document.getElementById('form-b-delivery').value;
+            
+            if(!name) return alert("اكتب اسم العمارة!");
+
+            const apartments = [];
+            document.querySelectorAll('.nested-box').forEach(fb => {
+                const fName = fb.querySelector('.floor-name-input').value || "غير محدد";
+                fb.querySelectorAll('.apt-edit-box').forEach(ab => {
+                    let rawPrice = ab.querySelector('.apt-price').value || "0";
+                    let formattedPrice = Number(rawPrice).toLocaleString('en-US') + " ج.م";
+
+                    apartments.push({
+                        id: ab.id,
+                        floor: fName,
+                        size: ab.querySelector('.apt-size').value || "غير محدد",
+                        price: formattedPrice,
+                        view: ab.querySelector('.apt-view').value || "غير محدد",
+                        rooms: ab.querySelector('.apt-rooms').value || "غير محدد",
+                        payment: ab.querySelector('.apt-payment').value || "غير محدد",
+                        images: currentSidebarAptImagesMap[ab.id] || []
+                    });
+                });
+            });
+
+            if(isEditingExisting) {
+                // تعديل عمارة موجودة
+                allBuildings = allBuildings.map(item => {
+                    if(item.id === editingBuildingId) {
+                        return { ...item, name, locationDesc: desc, buildingStatus: bStatus, deliveryDate: bDelivery, images: currentSidebarBuildingImages, apartments };
+                    }
+                    return item;
+                });
+                alert("تم تحديث بيانات العمارة بنجاح!");
+            } else {
+                // إضافة عمارة جديدة تماماً
+                allBuildings.push({
+                    id: Date.now(), name, coords: currentTempCoords, locationDesc: desc, types: ["سكني"],
+                    buildingStatus: bStatus, deliveryDate: bDelivery, images: currentSidebarBuildingImages, apartments
+                });
+                alert("تم حفظ وتثبيت العمارة الجديدة!");
+            }
+
+            if(tempMarker) map.removeLayer(tempMarker);
+            tempMarker = null;
+            toggleAdminMode();
+            renderMarkers();
+        }
+
+        // شاشات عرض العميل الفخمة
         function openBuildingModal(b) {
             currentSelectedBuilding = b;
             document.getElementById('modal-b-name').innerText = b.name;
             document.getElementById('modal-b-loc').innerText = "📍 " + b.locationDesc;
+            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة:</strong> عمارة متميزة بموقع استراتيجي في ${b.locationDesc}.`;
             
-            const imgContainer = document.getElementById('modal-building-img-container');
-            if(b.images && b.images.length > 0) { imgContainer.innerHTML = `<img src="${b.images[0]}" class="main-view-img"/>`; } 
-            else { imgContainer.innerHTML = `<div class="main-view-img" style="background:#cbd5e1; display:flex; align-items:center; justify-content:center; color:#64748b;">📸 لا توجد صور واجهة مرفوعة حالياً</div>`; }
+            // تاغ حالة الإنشاء الكلي للعمارة
+            const statusZone = document.getElementById('modal-b-status-zone');
+            if(b.buildingStatus === 'مبنية') {
+                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام الفوري 🔑</span>`;
+            } else {
+                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span><p style="font-size:11px; margin-top:4px; color:#c2410c;">📅 التسليم: ${b.deliveryDate || 'قريباً'}</p>`;
+            }
 
-            const tagsDiv = document.getElementById('modal-b-tags');
-            tagsDiv.innerHTML = '';
-            b.types.forEach(t => tagsDiv.innerHTML += `<span class="tag">${t}</span>`);
+            // ألبوم صور العمارة والمداخل المتعددة للعميل
+            const gallery = document.getElementById('modal-b-gallery');
+            gallery.innerHTML = '';
+            if(b.images && b.images.length > 0) {
+                b.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.open('${img}')"/>`; });
+            } else {
+                gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور للواجهة والمداخل بعد.</p>';
+            }
 
+            // بناء أزرار الأدوار
             const floorsList = document.getElementById('modal-floors-list');
             floorsList.innerHTML = '';
             const uniqueFloors = [...new Set(b.apartments.map(a => a.floor))];
@@ -210,12 +527,10 @@
 
             const filteredApts = currentSelectedBuilding.apartments.filter(a => a.floor === floorName);
             filteredApts.forEach(apt => {
-                // إضافة كلمة توضيحية سريعة جمب المساحة في الكارت
-                let statusText = apt.status === 'مبنية' ? '🔑 جاهزة' : '🏗️ قيد الإنشاء';
                 sizesList.innerHTML += `
                     <div class="size-card" onclick="openApartmentModal(${JSON.stringify(apt).replace(/"/g, '&quot;')})">
                         <div>
-                            <strong style="font-size:18px; color:#1e3a8a;">📐 مساحة ${apt.size} <span style="font-size:12px; font-weight:normal; color:#64748b;">(${statusText})</span></strong>
+                            <strong style="font-size:18px; color:#1e3a8a;">📐 مساحة ${apt.size}</strong>
                             <p style="font-size:13px; color:#64748b; margin-top:4px;">👁️ الإطلالة: ${apt.view}</p>
                         </div>
                         <span class="price-badge">${apt.price}</span>
@@ -229,184 +544,53 @@
             sizesSection.classList.add('fade-in');
         }
 
-        function goBackToFloors() {
-            document.getElementById('sizes-section').classList.add('fade-out');
-            const floorsSection = document.getElementById('floors-section');
-            floorsSection.classList.remove('fade-out');
-            floorsSection.classList.add('fade-in');
-        }
-
+        let currentActiveAptPrice = 0; // لحساب التمويل التفاعلي
         function openApartmentModal(apt) {
             document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}`;
             document.getElementById('apt-modal-view').innerText = apt.view;
             document.getElementById('apt-modal-rooms').innerText = apt.rooms;
-            document.getElementById('apt-modal-price').innerText = `💰 السعر الإجمالي: ${apt.price}`;
-            document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد: ${apt.payment}`;
+            document.getElementById('apt-modal-price').innerText = `السعر: ${apt.price}`;
+            document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد المتاح: ${apt.payment}`;
+            
+            // تجهيز السعر للحاسبة
+            currentActiveAptPrice = parseInt(apt.price.replace(/,/g, '')) || 0;
+            document.getElementById('calc-results').style.display = 'none';
 
-            // 1. عرض تاغ الحالة للعميل
-            const statusZone = document.getElementById('apt-modal-status-zone');
-            if(apt.status === 'مبنية') {
-                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام الفوري 🔑</span>`;
-                document.getElementById('apt-modal-delivery-zone').style.display = 'none';
-            } else {
-                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span>`;
-                // 2. إظهار موعد التسليم
-                const deliveryZone = document.getElementById('apt-modal-delivery-zone');
-                deliveryZone.innerHTML = `📅 <strong>موعد التسليم المتوقع:</strong> ${apt.deliveryDate || 'غير محدد بعد'}`;
-                deliveryZone.style.display = 'block';
-            }
+            // تظبيط اللينك للواتساب للحجز الفوري تلقائياً
+            document.getElementById('whatsapp-link').href = `https://wa.me/201000000000?text=مرحباً، أريد الاستفسار عن شقة بمساحة ${apt.size} في ${currentSelectedBuilding.name} المتاحة بـ ${apt.price}`;
 
             const gallery = document.getElementById('apt-modal-gallery');
             gallery.innerHTML = '';
             if(apt.images && apt.images.length > 0) {
                 apt.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.open('${img}')"/>`; });
             } else {
-                gallery.innerHTML = '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">📸 لم يتم رفع صور داخلية للشقة بعد.</p>';
+                gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور داخلية للشقة بعد.</p>';
             }
 
             document.getElementById('apartment-modal').classList.add('active');
         }
 
+        // الفكرة المضافة: حاسبة تمويل وأقساط سريعة للعميل فورياً داخل الكارت
+        function calculateFinancing() {
+            if(currentActiveAptPrice === 0) return;
+            let downPayment = currentActiveAptPrice * 0.10; // مقدم 10%
+            let remaining = currentActiveAptPrice - downPayment;
+            let monthlyInstallment = remaining / 50; // قسط على 50 شهر
+            
+            const calcBox = document.getElementById('calc-results');
+            calcBox.innerHTML = `
+                <p style="color:#15803d; font-weight:bold;">📉 الحسبة التقريبية على نظام (50 شهر بمقدم 10%):</p>
+                <p style="margin-top:6px;">💰 <strong>المقدم المطلوب (10%):</strong> ${downPayment.toLocaleString()} ج.م</p>
+                <p style="margin-top:4px;">🗓️ <strong>القسط الشهري (على 50 شهر):</strong> ${Math.round(monthlyInstallment).toLocaleString()} ج.م / شهرياً</p>
+            `;
+            calcBox.style.display = 'block';
+        }
+
+        function goBackToFloors() { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.remove('fade-out'); fs.classList.add('fade-in'); }
         function closeBuildingModal() { document.getElementById('building-modal').classList.remove('active'); }
         function closeApartmentModal() { document.getElementById('apartment-modal').classList.remove('active'); }
         function closeModal(modal, e) { if(e.target === modal) modal.classList.remove('active'); }
-
-        function toggleAdminMode() {
-            adminMode = !adminMode;
-            const btn = document.getElementById('admin-toggle-btn');
-            if(adminMode) {
-                btn.innerText = "🛑 إلغاء وضع التعديل";
-                btn.classList.add('btn-admin-active');
-                document.getElementById('admin-sidebar').style.display = 'block';
-            } else {
-                btn.innerText = "🔧 وضع إضافة العماير";
-                btn.classList.remove('btn-admin-active');
-                closeAdminSidebar();
-            }
-        }
-
-        map.on('click', function(e) {
-            if (!adminMode) return;
-            if (tempMarker) map.removeLayer(tempMarker);
-            currentTempCoords = [e.latlng.lat, e.latlng.lng];
-            tempMarker = L.marker(currentTempCoords).addTo(map);
-            document.getElementById('form-floors-container').innerHTML = '';
-        });
-
-        let floorCount = 0;
-        function addFloorForm() {
-            floorCount++;
-            const container = document.getElementById('form-floors-container');
-            const floorId = `floor-${floorCount}`;
-            const html = `
-                <div class="nested-box" id="${floorId}">
-                    <label>الدور:</label><input type="text" class="floor-name-input" placeholder="الدور الثاني">
-                    <div class="apts-box"></div>
-                    <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
-                </div>`;
-            container.insertAdjacentHTML('beforeend', html);
-            addAptForm(floorId);
-        }
-
-        let aptCount = 0;
-        function addAptForm(floorId) {
-            aptCount++;
-            const box = document.getElementById(floorId).querySelector('.apts-box');
-            const aptUid = `uid-${aptCount}`;
-            const html = `
-                <div class="apt-edit-box" id="${aptUid}">
-                    <label style="color:#0284c7; font-size:12px;">🏠 شقة جديدة:</label>
-                    <input type="text" class="apt-size" placeholder="المساحة: 125 متر" style="margin-top:4px;">
-                    <input type="text" class="apt-price" placeholder="السعر: 2,000,000 ج.م" style="margin-top:4px;">
-                    
-                    <!-- الاختيار الجديد: حالة الشقة -->
-                    <select class="apt-status" onchange="toggleDeliveryInput(this, '${aptUid}')" style="margin-top:4px;">
-                        <option value="مبنية">مبنية (جاهزة للاستلام فوري)</option>
-                        <option value="تحت_الإنشاء">تحت الإنشاء</option>
-                    </select>
-                    
-                    <!-- خانة تاريخ التسليم المخفية تلقائياً -->
-                    <input type="text" class="apt-delivery" placeholder="موعد التسليم: مثال (ديسمبر 2026)" style="margin-top:4px; display:none;" id="delivery-input-${aptUid}">
-                    
-                    <input type="text" class="apt-view" placeholder="الإطلالة: خلفي" style="margin-top:4px;">
-                    <input type="text" class="apt-rooms" placeholder="التقسيم: 3 غرف" style="margin-top:4px;">
-                    <input type="text" class="apt-payment" placeholder="السداد: قسط" style="margin-top:4px;">
-                    <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px; width:100%;">
-                </div>`;
-            box.insertAdjacentHTML('beforeend', html);
-        }
-
-        // إظهار وإخفاء خانة موعد التسليم ذكياً حسب الاختيار
-        function toggleDeliveryInput(selectElement, aptUid) {
-            const deliveryInput = document.getElementById(`delivery-input-${aptUid}`);
-            if(selectElement.value === 'تحت_الإنشاء') {
-                deliveryInput.style.display = 'block';
-            } else {
-                deliveryInput.style.display = 'none';
-                deliveryInput.value = ''; // تصفير القيمة لو رجع اختار مبنية
-            }
-        }
-
-        function handleBuildingImages(input) {
-            uploadedBuildingImages = [];
-            if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => uploadedBuildingImages.push(e.target.result);
-                    r.readAsDataURL(f);
-                });
-            }
-        }
-
-        function saveAptImages(input, uid) {
-            uploadedAptImagesMap[uid] = [];
-            if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => uploadedAptImagesMap[uid].push(e.target.result);
-                    r.readAsDataURL(f);
-                });
-            }
-        }
-
-        function saveNewBuilding() {
-            const name = document.getElementById('form-b-name').value;
-            const desc = document.getElementById('form-b-desc').value;
-            if(!name) return alert("اكتب الاسم");
-
-            const apartments = [];
-            document.querySelectorAll('.nested-box').forEach(fb => {
-                const fName = fb.querySelector('.floor-name-input').value || "غير محدد";
-                fb.querySelectorAll('.apt-edit-box').forEach(ab => {
-                    apartments.push({
-                        floor: fName,
-                        size: ab.querySelector('.apt-size').value || "غير محدد",
-                        price: ab.querySelector('.apt-price').value || "غير محدد",
-                        status: ab.querySelector('.apt-status').value,
-                        deliveryDate: ab.querySelector('.apt-delivery').value || "",
-                        view: ab.querySelector('.apt-view').value || "غير محدد",
-                        rooms: ab.querySelector('.apt-rooms').value || "غير محدد",
-                        payment: ab.querySelector('.apt-payment').value || "غير محدد",
-                        images: uploadedAptImagesMap[ab.id] || []
-                    });
-                });
-            });
-
-            allBuildings.push({ id: Date.now(), name, coords: currentTempCoords, locationDesc: desc, types: ["سكني"], images: uploadedBuildingImages, apartments });
-            if(tempMarker) map.removeLayer(tempMarker);
-            tempMarker = null;
-            toggleAdminMode();
-            renderMarkers();
-        }
-
-        function openAdminDelete(b) {
-            if(confirm(`حذف ${b.name}؟`)) {
-                allBuildings = allBuildings.filter(x => x.id !== b.id);
-                renderMarkers();
-            }
-        }
-
-        function closeAdminSidebar() { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); }
+        function closeAdminSidebar() { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; }
 
         renderMarkers();
     </script>
