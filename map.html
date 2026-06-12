@@ -11,8 +11,24 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
+        body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; position: relative; }
         
+        /* العلامة المائية الفخمة (Watermark) */
+        .map-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 8rem;
+            font-weight: 900;
+            color: rgba(30, 58, 138, 0.05); /* لون كحلي شفاف جداً */
+            z-index: 400; /* فوق الخريطة وتحت الدبابيس */
+            pointer-events: none;
+            white-space: nowrap;
+            user-select: none;
+            font-style: italic;
+        }
+
         #top-bar { display: none; background: #0f172a; padding: 15px 20px; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
         .top-btns-group { display: flex; gap: 10px; }
         
@@ -28,6 +44,18 @@
 
         #main-container { display: flex; flex: 1; height: 100vh; width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
+        
+        /* تصميم اليافطة الصغيرة اللي بتظهر فوق الدبوس لعدد الوحدات */
+        .leaflet-tooltip.custom-tooltip {
+            background: white;
+            color: #1e3a8a;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            padding: 8px 12px;
+        }
         
         .leaflet-marker-icon {
             filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.6));
@@ -89,10 +117,13 @@
         .btn-appointment { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white; border: none; padding: 15px; border-radius: 12px; text-decoration: none; font-weight: 900; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 16px; cursor: pointer; transition: all 0.3s; width: 100%; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); text-transform: uppercase; }
         .btn-appointment:hover { background: linear-gradient(135deg, #7c3aed, #5b21b6); transform: translateY(-3px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6); }
 
-        .action-buttons { display: flex; gap: 10px; margin-top: 5px; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 5px; flex-wrap: wrap; }
         .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
         .btn-call { background: #2563eb; }
         .btn-whatsapp { background: #16a34a; }
+        /* ستايل زر الـ GPS */
+        .btn-gps { background: #f59e0b; min-width: 100%; margin-bottom: 5px; }
+        .btn-gps:hover { background: #d97706; }
     </style>
 </head>
 <body>
@@ -107,7 +138,9 @@
     </div>
 
     <div id="main-container">
-        <!-- الكارت العائم اللي هيظهر للعميل باسم السيلز -->
+        <!-- العلامة المائية الفخمة -->
+        <div class="map-watermark">عقاري اليوم</div>
+        
         <div id="floating-sales-badge">
             <div style="font-size: 11px; color: #64748b;">مشاريع شركة عقاري اليوم 🏢</div>
             <div id="floating-sales-name" style="font-size: 15px; color: #1e3a8a; margin-top: 2px;"></div>
@@ -234,6 +267,8 @@
             <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
 
             <div class="action-buttons">
+                <!-- زر الـ GPS الجديد للمعاينة -->
+                <a href="#" id="gps-link" target="_blank" class="action-btn btn-gps">📍 مسار الطريق للموقع (GPS)</a>
                 <a href="#" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="#" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
             </div>
@@ -388,10 +423,16 @@
                 const bApts = inventoryProperties.filter(p => (p.area || '').trim() === (mapB.name || '').trim() && p.status === 'متاح');
                 
                 const marker = L.marker(mapB.coords).addTo(map);
-                let tooltipText = `${mapB.name}`;
-                if(!adminMode && bApts.length > 0) tooltipText += ` (${bApts.length} متاح)`;
                 
-                marker.bindTooltip(tooltipText, { permanent: true, direction: 'top' });
+                // تصميم يافطة شفافة بتظهر عدد الوحدات أعلى العمارة للمستخدم
+                let tooltipText = `<div style="text-align:center;"><b>${mapB.name}</b>`;
+                if(!adminMode && bApts.length > 0) {
+                    tooltipText += `<br><span style="color:#a7f3d0; font-size:12px; background:#1e3a8a; padding:3px 8px; border-radius:6px; display:inline-block; margin-top:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${bApts.length} وحدات متاحة</span>`;
+                }
+                tooltipText += `</div>`;
+                
+                marker.bindTooltip(tooltipText, { permanent: true, direction: 'top', className: 'custom-tooltip' });
+                
                 marker.on('click', function() { 
                     if(!adminMode) window.openBuildingModal(mapB, bApts); 
                     else window.openAdminEditSidebar(mapB);
@@ -467,7 +508,6 @@
             sizesContainer.innerHTML = '';
             uniqueSizes.forEach(size => {
                 if(!currentSizeTemplates[size]) {
-                    // --- النظام الذكي לאقتراح التقسيم ---
                     let defaultRooms = "";
                     let relatedProps = bProps.filter(p => p.size == size);
                     let isCommOrAdmin = relatedProps.some(p => ['تجاري', 'محل', 'بدروم', 'اداري', 'إداري', 'مكتب', 'عيادة'].some(k => (p.floor||'').includes(k)));
@@ -685,7 +725,6 @@
             
             const uniqueFloors = [...new Set(bApts.map(a => a.floor || 'غير محدد'))];
             
-            // خوارزمية الفرز الذكية للأدوار
             uniqueFloors.sort((a, b) => {
                 const getWeight = (str) => {
                     let s = str.toString().trim();
@@ -759,6 +798,9 @@
             document.getElementById('apt-modal-price').innerText = `السعر الأصلي: ${Number(apt.price).toLocaleString('en-US')} ج`;
             document.getElementById('apt-modal-payment').innerText = `💳 الأنظمة المتوفرة: ${aptPayment}`;
             
+            // إضافة رابط الـ GPS بناءً على إحداثيات العمارة
+            document.getElementById('gps-link').href = `https://www.google.com/maps/dir/?api=1&destination=${mapB.coords[0]},${mapB.coords[1]}`;
+
             const gallery = document.getElementById('apt-modal-gallery');
             gallery.innerHTML = '';
             if(aptImages.length > 0) {
