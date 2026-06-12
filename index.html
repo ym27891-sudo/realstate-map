@@ -121,6 +121,7 @@
                 }
                 document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+                if(document.getElementById('adminMapBtn')) document.getElementById('adminMapBtn').classList.toggle('hidden', currentUserRole !== 'admin');
                 initAppListeners();
             } else {
                 document.getElementById('loginSection').classList.remove('hidden');
@@ -706,7 +707,7 @@
             
             if (topSalesContainer) {
                 let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume).slice(0, 3);
+                                                                    .sort((a, b) => b.volume - a.volume).slice(0, 3);
                 
                 if (sortedSales.length === 0) {
                     topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
@@ -723,7 +724,7 @@
 
             if (topTeamContainer) {
                 let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume);
+                                                                    .sort((a, b) => b.volume - a.volume);
                 
                 if (sortedTeams.length === 0) {
                     topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
@@ -1164,6 +1165,10 @@
             <h1 class="text-3xl font-black text-navy italic font-serif tracking-tighter uppercase">Inventory</h1>
             <div class="flex items-center gap-4 font-black">
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
+                
+                <!-- زر الانتقال للخريطة الخاص بالأدمن -->
+                <button id="adminMapBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">خريطة المواقع 🗺️</button>
+                
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
                 <div class="relative cursor-pointer font-black" onclick="toggleNotif()">
                     <div class="bg-navy p-2 rounded-xl text-white shadow-md text-lg">🔔</div>
