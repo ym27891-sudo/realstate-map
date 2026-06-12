@@ -2,7 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- إضافة إعدادات منع الزووم العشوائي لراحة مستخدمين الموبايل -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>مواقع مشاريع الشركة | عقاري اليوم</title>
     
     <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/map.png">
@@ -13,16 +14,17 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; position: relative; }
         
-        /* العلامة المائية الفخمة (Watermark) */
+        /* العلامة المائية الفخمة (تم تظبيط الوضوح والحجم للموبايل) */
         .map-watermark {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-30deg);
-            font-size: 8rem;
+            font-size: clamp(4rem, 12vw, 8rem);
             font-weight: 900;
-            color: rgba(30, 58, 138, 0.05); /* لون كحلي شفاف جداً */
-            z-index: 400; /* فوق الخريطة وتحت الدبابيس */
+            color: rgba(30, 58, 138, 0.12); /* درجة وضوح أعلى قليلاً وأنيقة */
+            text-shadow: 2px 2px 4px rgba(255,255,255,0.4);
+            z-index: 400; 
             pointer-events: none;
             white-space: nowrap;
             user-select: none;
@@ -45,7 +47,6 @@
         #main-container { display: flex; flex: 1; height: 100vh; width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
-        /* تصميم اليافطة الصغيرة اللي بتظهر فوق الدبوس لعدد الوحدات */
         .leaflet-tooltip.custom-tooltip {
             background: white;
             color: #1e3a8a;
@@ -72,7 +73,7 @@
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal-content { background: white; width: 90%; max-width: 700px; max-height: 85vh; border-radius: 20px; padding: 30px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9) translateY(20px); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
         .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
-        .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; }
+        .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; z-index: 100; }
 
         #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
         #lightbox-img { max-width: 90%; max-height: 85vh; border-radius: 12px; box-shadow: 0 0 30px rgba(255,255,255,0.2); }
@@ -121,9 +122,26 @@
         .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
         .btn-call { background: #2563eb; }
         .btn-whatsapp { background: #16a34a; }
-        /* ستايل زر الـ GPS */
         .btn-gps { background: #f59e0b; min-width: 100%; margin-bottom: 5px; }
         .btn-gps:hover { background: #d97706; }
+
+        /* Media Queries للموبايل عشان تكون 100% متجاوبة وواضحة */
+        @media (max-width: 600px) {
+            .modal-content { padding: 20px; width: 95%; max-height: 90vh; }
+            #modal-b-name { font-size: 22px !important; }
+            #apt-modal-title { font-size: 18px !important; }
+            .size-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .price-badge { align-self: flex-end; }
+            
+            /* تظبيط الزراير تحت بعض في الموبايل */
+            .action-buttons { flex-direction: column; }
+            .action-btn { width: 100%; font-size: 14px; padding: 14px; }
+            
+            #floating-sales-badge { top: 10px; right: 10px; padding: 8px 12px; }
+            #floating-sales-name { font-size: 13px !important; }
+            
+            .modal-close { top: 15px; left: 15px; font-size: 28px; }
+        }
     </style>
 </head>
 <body>
@@ -237,7 +255,7 @@
         <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #3b82f6;">
             <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الوحدة السكنية</h2>
+                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الوحدة</h2>
                 <span id="apt-modal-code" style="background: #1e3a8a; color: white; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 14px;"></span>
             </div>
             <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
@@ -247,7 +265,7 @@
             
             <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
                 <p style="margin-bottom: 8px; font-size: 16px;">👁️ <strong>الإطلالة:</strong> <span id="apt-modal-view"></span></p>
-                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>التقسيم وغرف النوم:</strong> <span id="apt-modal-rooms"></span></p>
+                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>التقسيم:</strong> <span id="apt-modal-rooms"></span></p>
                 <div style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
                     <span id="apt-modal-price" class="price-badge"></span>
                 </div>
@@ -267,7 +285,7 @@
             <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
 
             <div class="action-buttons">
-                <!-- زر الـ GPS الجديد للمعاينة -->
+                <!-- زر الـ GPS للمعاينة -->
                 <a href="#" id="gps-link" target="_blank" class="action-btn btn-gps">📍 مسار الطريق للموقع (GPS)</a>
                 <a href="#" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="#" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
@@ -395,6 +413,17 @@
             });
         };
 
+        // دالة المساعد الذكي لتحديد الغرف
+        function getAutoRoomsText(size, floorStr) {
+            if (!size) return "غير محدد";
+            let isComm = ['تجار', 'محل', 'بدروم', 'ادار', 'إدار', 'مكتب', 'عياد'].some(k => (floorStr||'').includes(k));
+            if (isComm) return "مساحة مفتوحة (تجاري/إداري)";
+            let numSize = parseFloat(size);
+            if (numSize >= 80 && numSize <= 105) return "غرفتين وحمام";
+            if (numSize > 105) return "3 غرف و 2 حمام";
+            return "غير محدد";
+        }
+
         db.collection('properties').onSnapshot((snap) => {
             inventoryProperties = snap.docs.map(d => ({id: d.id, ...d.data()}));
             invDataLoaded = true;
@@ -424,7 +453,6 @@
                 
                 const marker = L.marker(mapB.coords).addTo(map);
                 
-                // تصميم يافطة شفافة بتظهر عدد الوحدات أعلى العمارة للمستخدم
                 let tooltipText = `<div style="text-align:center;"><b>${mapB.name}</b>`;
                 if(!adminMode && bApts.length > 0) {
                     tooltipText += `<br><span style="color:#a7f3d0; font-size:12px; background:#1e3a8a; padding:3px 8px; border-radius:6px; display:inline-block; margin-top:5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${bApts.length} وحدات متاحة</span>`;
@@ -508,20 +536,11 @@
             sizesContainer.innerHTML = '';
             uniqueSizes.forEach(size => {
                 if(!currentSizeTemplates[size]) {
-                    let defaultRooms = "";
                     let relatedProps = bProps.filter(p => p.size == size);
-                    let isCommOrAdmin = relatedProps.some(p => ['تجاري', 'محل', 'بدروم', 'اداري', 'إداري', 'مكتب', 'عيادة'].some(k => (p.floor||'').includes(k)));
+                    let sampleFloor = relatedProps.length > 0 ? relatedProps[0].floor : '';
+                    let autoRooms = getAutoRoomsText(size, sampleFloor);
                     
-                    if(!isCommOrAdmin) {
-                        let numSize = parseFloat(size);
-                        if(numSize >= 80 && numSize <= 105) {
-                            defaultRooms = "غرفتين وحمام";
-                        } else if(numSize > 105) {
-                            defaultRooms = "3 غرف و 2 حمام";
-                        }
-                    }
-                    
-                    currentSizeTemplates[size] = { view: '', rooms: defaultRooms, payment: '', images: [] };
+                    currentSizeTemplates[size] = { view: '', rooms: autoRooms, payment: '', images: [] };
                 }
                 const tData = currentSizeTemplates[size];
                 
@@ -529,7 +548,7 @@
                     <div class="nested-box">
                         <strong style="color:#0284c7; display:block; margin-bottom:10px;">إعدادات مساحة ${size}م:</strong>
                         <input type="text" id="tpl-view-${size}" placeholder="الإطلالة (مثال: واجهة)" value="${tData.view}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'view', this.value)">
-                        <input type="text" id="tpl-rooms-${size}" placeholder="التقسيم (مثال: 3 غرف)" value="${tData.rooms}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'rooms', this.value)">
+                        <input type="text" id="tpl-rooms-${size}" placeholder="التقسيم (يتم سحبه تلقائياً، ويمكن التعديل)" value="${tData.rooms}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'rooms', this.value)">
                         <input type="text" id="tpl-payment-${size}" placeholder="نظام السداد الافتراضي" value="${tData.payment}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'payment', this.value)">
                         <input type="file" multiple accept="image/*" onchange="window.handleTplImages(this, '${size}')" class="w-full text-xs">
                         <div id="tpl-img-preview-${size}" class="image-preview">${tData.images.map(img => `<img src="${img}"/>`).join('')}</div>
@@ -787,18 +806,20 @@
             const template = (mapB.sizeTemplates && mapB.sizeTemplates[apt.size]) || {};
             
             const aptView = override.view || template.view || "واجهة";
-            const aptRooms = override.rooms || template.rooms || "غير محدد";
+            // الاعتماد الذكي على الدالة لو التمبلت مفيهوش غرف
+            const autoRoomsText = getAutoRoomsText(apt.size, apt.floor);
+            const aptRooms = override.rooms || template.rooms || autoRoomsText;
+            
             const aptPayment = override.payment || template.payment || "كاش أو تقسيط";
             const aptImages = (override.images && override.images.length > 0) ? override.images : (template.images || []);
 
-            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل الوحدة السكنية`;
+            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل الوحدة`;
             document.getElementById('apt-modal-code').innerText = `كود: ${apt.code}`;
             document.getElementById('apt-modal-view').innerText = aptView;
             document.getElementById('apt-modal-rooms').innerText = aptRooms;
             document.getElementById('apt-modal-price').innerText = `السعر الأصلي: ${Number(apt.price).toLocaleString('en-US')} ج`;
             document.getElementById('apt-modal-payment').innerText = `💳 الأنظمة المتوفرة: ${aptPayment}`;
             
-            // إضافة رابط الـ GPS بناءً على إحداثيات العمارة
             document.getElementById('gps-link').href = `https://www.google.com/maps/dir/?api=1&destination=${mapB.coords[0]},${mapB.coords[1]}`;
 
             const gallery = document.getElementById('apt-modal-gallery');
@@ -867,7 +888,7 @@
             }
 
             const message = `مرحباً أستاذ ${currentSalesData.name}،
-أرغب في تأكيد حجز موعد لمعاينة الوحدة السكنية:
+أرغب في تأكيد حجز موعد لمعاينة الوحدة:
 📌 كود الوحدة: ${code}
 👤 اسمي: ${name}
 📞 رقم هاتفي: ${phone}
