@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- تعديل العنوان ليكون خاص بمشاريع الشركة -->
     <title>مواقع مشاريع الشركة | عقاري اليوم</title>
     
-    <!-- تعديل الأيقونة لتكون على شكل خريطة -->
     <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/map.png">
     <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/512/map.png">
     
@@ -81,7 +79,11 @@
         .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
         .delete-icon-btn:hover { background: #ef4444; color: white; }
         
-        .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
+        /* تنسيق زر حجز الموعد الجديد الجذاب */
+        .btn-appointment { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white; border: none; padding: 15px; border-radius: 12px; text-decoration: none; font-weight: 900; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 16px; cursor: pointer; transition: all 0.3s; width: 100%; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); text-transform: uppercase; }
+        .btn-appointment:hover { background: linear-gradient(135deg, #7c3aed, #5b21b6); transform: translateY(-3px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6); }
+
+        .action-buttons { display: flex; gap: 10px; margin-top: 5px; }
         .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
         .btn-call { background: #2563eb; }
         .btn-whatsapp { background: #16a34a; }
@@ -107,6 +109,7 @@
 
         <div id="map"></div>
 
+        <!-- الشريط الجانبي للإدارة -->
         <div id="admin-sidebar">
             <span style="float:left; cursor:pointer; font-weight:bold; font-size:18px;" onclick="window.closeAdminSidebar()">✕</span>
             <h3 id="admin-sidebar-title" style="margin-bottom:15px; color:#1e3a8a;">➕ إضافة موقع عمارة</h3>
@@ -160,6 +163,7 @@
         </div>
     </div>
 
+    <!-- مودال العمارة -->
     <div id="building-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
         <div class="modal-content">
             <span class="modal-close" onclick="window.closeBuildingModal()">✕</span>
@@ -187,6 +191,7 @@
         </div>
     </div>
 
+    <!-- مودال تفاصيل الشقة -->
     <div id="apartment-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
         <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #3b82f6;">
             <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
@@ -218,10 +223,42 @@
                 </div>
             </div>
             
+            <!-- زر الحجز الفخم الجديد -->
+            <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
+
+            <!-- زراير التواصل العادية -->
             <div class="action-buttons">
                 <a href="#" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="#" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
             </div>
+        </div>
+    </div>
+
+    <!-- مودال حجز الموعد الجديد -->
+    <div id="appointment-modal" class="modal-overlay" onclick="window.closeModal(this, event)" style="z-index: 2500;">
+        <div class="modal-content" style="max-width: 400px; border-top: 6px solid #8b5cf6;">
+            <span class="modal-close" onclick="window.closeAppointmentModal()">✕</span>
+            <h3 style="color:#1e3a8a; font-size:18px; margin-bottom:15px; border-bottom:2px solid #e2e8f0; padding-bottom:10px;">📅 تحديد موعد معاينة</h3>
+            <p style="font-size:13px; color:#64748b; margin-bottom:15px;">رقم الوحدة: <span id="appoint-apt-code" style="font-weight:bold; color:#8b5cf6; font-size:15px;"></span></p>
+
+            <div class="form-group">
+                <label>الاسم الكريم:</label>
+                <input type="text" id="appoint-name" placeholder="اكتب اسمك هنا...">
+            </div>
+            <div class="form-group">
+                <label>رقم الهاتف:</label>
+                <input type="tel" id="appoint-phone" placeholder="01xxxxxxxxx">
+            </div>
+            <div class="form-group">
+                <label>تاريخ المعاينة المناسب:</label>
+                <input type="date" id="appoint-date">
+            </div>
+            <div class="form-group">
+                <label>الوقت المناسب:</label>
+                <input type="time" id="appoint-time">
+            </div>
+
+            <button class="btn" style="background:#8b5cf6; width:100%; margin-top:15px; padding:12px; font-size:16px;" onclick="window.confirmAppointment()">تأكيد وإرسال للمستشار العقاري ✅</button>
         </div>
     </div>
 
@@ -249,9 +286,9 @@
         const db = firebase.firestore();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const isCustomerLink = urlParams.has('sales_name'); // إذا كان اللينك به اسم سيلز، فهو لينك عميل
+        const isCustomerLink = urlParams.has('sales_name'); // تأكيد إن ده لينك مبعوت لعميل
 
-        // نظام الحماية: إظهار لوحة تحكم الخريطة للأدمن فقط (بشرط ألا يكون هذا اللينك مرسلاً لعميل)
+        // نظام الحماية الصارم: لو ده مش لينك عميل، وأنت مسجل دخول أدمن، هيظهر الشريط
         if (!isCustomerLink) {
             firebase.auth().onAuthStateChanged(async (user) => {
                 if (user) {
@@ -283,6 +320,9 @@
         let redirectAttempted = false;
         let currentSalesData = { name: "خدمة العملاء", phone: "01000000000", whatsapp: "201000000000" };
         let currentSelectedBuildingData = null; 
+        
+        // متغير عالمي لحفظ كود الشقة المطلوب حجزها
+        window.currentBookingAptCode = "";
 
         let currentSidebarBuildingImages = [];
         let currentSizeTemplates = {}; 
@@ -655,6 +695,9 @@
             const apt = bApts.find(a => a.code === aptCode);
             if(!apt) return;
 
+            // حفظ الكود عشان نستخدمه في مودال الحجز
+            window.currentBookingAptCode = apt.code;
+
             const override = (mapB.aptOverrides && mapB.aptOverrides[apt.code]) || {};
             const template = (mapB.sizeTemplates && mapB.sizeTemplates[apt.size]) || {};
             
@@ -700,6 +743,61 @@
             document.getElementById('apartment-modal').classList.add('active');
         };
 
+        // --- وظائف نافذة حجز موعد المعاينة ---
+        window.openAppointmentModal = () => {
+            document.getElementById('appoint-apt-code').innerText = window.currentBookingAptCode || '';
+            document.getElementById('appointment-modal').classList.add('active');
+        };
+
+        window.closeAppointmentModal = () => {
+            document.getElementById('appointment-modal').classList.remove('active');
+        };
+
+        window.confirmAppointment = async () => {
+            const name = document.getElementById('appoint-name').value.trim();
+            const phone = document.getElementById('appoint-phone').value.trim();
+            const date = document.getElementById('appoint-date').value;
+            const time = document.getElementById('appoint-time').value;
+            const code = window.currentBookingAptCode;
+
+            if(!name || !phone || !date || !time) {
+                alert('برجاء ملء جميع البيانات لتأكيد الموعد!');
+                return;
+            }
+
+            // محاولة حفظ الطلب في قاعدة البيانات للإدارة (صامتة عشان لو الـ Rules منعتها متعملش مشكلة للعميل)
+            try {
+                await db.collection('appointments').add({
+                    aptCode: code,
+                    customerName: name,
+                    customerPhone: phone,
+                    date: date,
+                    time: time,
+                    salesName: currentSalesData.name,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch(e) {
+                console.log("سيتم التحويل للواتساب مباشرة.");
+            }
+
+            // تحضير رسالة الواتساب الجاهزة
+            const message = `مرحباً أستاذ ${currentSalesData.name}،
+أرغب في تأكيد حجز موعد لمعاينة الوحدة السكنية:
+📌 كود الوحدة: ${code}
+👤 اسمي: ${name}
+📞 رقم هاتفي: ${phone}
+📅 تاريخ المعاينة: ${date}
+⏰ الوقت المناسب: ${time}
+
+برجاء تأكيد الموعد معي، شكراً لك.`;
+
+            const waUrl = `https://wa.me/${currentSalesData.whatsapp}?text=${encodeURIComponent(message)}`;
+            
+            alert('تم تسجيل طلبك بنجاح! سيتم تحويلك الآن للواتساب لتأكيد الموعد مع المستشار العقاري مباشرة.');
+            window.open(waUrl, '_blank');
+            window.closeAppointmentModal();
+        };
+
         window.checkUrlParametersAndRedirect = () => {
             const urlParams = new URLSearchParams(window.location.search);
             if(urlParams.has('sales_name')) {
@@ -739,6 +837,7 @@
         window.goBackToFloors = () => { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.classList.remove('fade-out'); fs.classList.add('fade-in'); };
         window.closeBuildingModal = () => { document.getElementById('building-modal').classList.remove('active'); };
         window.closeApartmentModal = () => { document.getElementById('apartment-modal').classList.remove('active'); };
+        window.closeAppointmentModal = () => { document.getElementById('appointment-modal').classList.remove('active'); };
         window.closeModal = (modal, e) => { if(e.target === modal) modal.classList.remove('active'); };
         window.closeAdminSidebar = () => { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; };
 
