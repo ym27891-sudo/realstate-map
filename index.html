@@ -548,7 +548,7 @@
                 }
 
                 if (isMatch) {
-                    if (b => p.status === 'تم البيع') soldCount++;
+                    if (p.status === 'تم البيع') soldCount++;
                     if (p.status === 'تم الحجز') reservedCount++;
 
                     const displayTeamName = p.teamName ? p.teamName : "بدون تيم";
@@ -719,7 +719,7 @@
             
             if (topSalesContainer) {
                 let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume).slice(0, 3);
+                                                                    .sort((a, b) => b.volume - a.volume).slice(0, 3);
                 
                 if (sortedSales.length === 0) {
                     topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
@@ -736,7 +736,7 @@
 
             if (topTeamContainer) {
                 let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
-                                                            .sort((a, b) => b.volume - a.volume);
+                                                                    .sort((a, b) => b.volume - a.volume);
                 
                 if (sortedTeams.length === 0) {
                     topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
@@ -1260,7 +1260,7 @@
             window.currentSidebarAptImagesMap[aptUid] = [];
             const html = `
                 <div class="apt-edit-box" id="${aptUid}">
-                    <button class="delete-icon-btn" style="top:2px; left:2px;" onclick="this.parentElement.remove()">&times;</button>
+                    <button class="delete-icon-btn" style="top:2px; left:2px;" onclick="this.parentElement.remove()">×</button>
                     <input type="text" class="apt-size w-full border p-1 rounded text-xs" placeholder="المساحة: 125م">
                     <input type="text" class="apt-price w-full border p-1 rounded text-xs mt-1" placeholder="السعر الإجمالي">
                     <input type="text" class="apt-view w-full border p-1 rounded text-xs mt-1" placeholder="الإطلالة: واجهة">
@@ -1412,10 +1412,10 @@
             window.currentSelectedBuilding = b;
             document.getElementById('modal-b-name').innerText = "عمارة " + b.name;
             document.getElementById('modal-b-loc').innerText = "📍 " + (b.locationDesc || "حدائق الأهرام");
-            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة للشركة:</strong> عمارة متميزة بموقع استراتيجي رائع في ${b.locationDesc || 'حدائق الأهرام'}.`;
+            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة للموقع:</strong> عمارة متميزة بموقع استراتيجي رائع في ${b.locationDesc || 'حدائق الأهرام'}.`;
             
             document.getElementById('google-maps-btn').onclick = function() {
-                window.open(`https://www.google.com/maps/search/?api=1&query=${b.coords[0]},${b.coords[1]}`, '_blank');
+                window.open(`https://maps.google.com/?q=${b.coords[0]},${b.coords[1]}`, '_blank');
             };
 
             const statusZone = document.getElementById('modal-b-status-zone');
@@ -1456,18 +1456,85 @@
             const sizesSection = document.getElementById('sizes-section'); sizesSection.classList.remove('fade-out'); sizesSection.classList.add('fade-in');
         };
 
+        // --- دوال Payment Plan والواتساب الجديدة ---
+        window.calcAptPayment = (totalPrice) => {
+            let pct = parseFloat(document.getElementById('apt-down-pct').value) || 0;
+            let months = parseInt(document.getElementById('apt-months').value) || 0;
+            let resultDiv = document.getElementById('apt-payment-result');
+            let down = (totalPrice * pct) / 100;
+            let rem = totalPrice - down;
+            let monthly = months > 0 ? rem / months : 0;
+
+            window.currentActiveApartmentData.calculatedPlan = {
+                down: down,
+                months: months,
+                monthly: monthly,
+                pct: pct
+            };
+
+            if (pct > 0 && months > 0) {
+                resultDiv.innerHTML = `<span class="text-green-700 font-extrabold">المقدم: ${Math.round(down).toLocaleString('en-US')} ج</span> <br> <span class="text-red-600 font-extrabold">القسط: ${Math.round(monthly).toLocaleString('en-US')} ج / ${months} شهر</span>`;
+            } else {
+                resultDiv.innerHTML = '';
+            }
+        };
+
+        window.shareMapApartmentWhatsApp = () => {
+            let apt = window.currentActiveApartmentData;
+            let b = window.currentSelectedBuilding;
+            let locLink = `https://maps.google.com/?q=${b.coords[0]},${b.coords[1]}`;
+            let sName = window.currentAgentName || "المبيعات";
+
+            let msg = `أهلاً بك يا فندم معك أ/ ${sName} 👋\n\n`;
+            msg += `🏢 *تفاصيل الوحدة العقارية المتميزة:*\n`;
+            msg += `▪️ العمارة: *${b.name}*\n`;
+            msg += `▪️ المساحة: *${apt.size}*\n`;
+            msg += `▪️ الدور: *${apt.floor}*\n`;
+            msg += `▪️ الإطلالة: *${apt.view}*\n`;
+            msg += `▪️ التقسيم الداخلي: *${apt.rooms}*\n`;
+            msg += `💰 *السعر الإجمالي:* ${apt.price}\n\n`;
+
+            if (apt.calculatedPlan && apt.calculatedPlan.months > 0) {
+                msg += `💳 *خطة الدفع (Payment Plan):*\n`;
+                msg += `- المقدم (${apt.calculatedPlan.pct}%): *${Math.round(apt.calculatedPlan.down).toLocaleString('en-US')} ج.م*\n`;
+                msg += `- القسط الشهري: *${Math.round(apt.calculatedPlan.monthly).toLocaleString('en-US')} ج.م*\n`;
+                msg += `- مدة التقسيط: *${apt.calculatedPlan.months} شهر*\n\n`;
+            } else {
+                msg += `💳 *نظام السداد:* ${apt.payment}\n\n`;
+            }
+
+            msg += `📍 *موقع العمارة الفعلي على الخريطة (GPS):*\n${locLink}\n\n`;
+            msg += `لأي استفسار أو لمعاينة الموقع، أنا تحت أمرك في أي وقت!`;
+
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
         window.openMapApartmentModal = (apt) => {
             window.currentActiveApartmentData = apt;
             document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}`;
             document.getElementById('apt-modal-view').innerText = apt.view;
             document.getElementById('apt-modal-rooms').innerText = apt.rooms;
-            document.getElementById('apt-modal-price').innerText = `السعر: ${apt.price}`;
-            document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد: ${apt.payment}`;
+            document.getElementById('apt-modal-price').innerText = `السعر الإجمالي: ${apt.price}`;
             
-            document.getElementById('sidebar-call-btn').href = `tel:01000000000`;
-            // تزويد الاسم تلقائياً للواتس
-            let sName = window.currentAgentName || "المبيعات";
-            document.getElementById('whatsapp-link-map').href = `https://wa.me/201000000000?text=أهلاً بك أ/ ${sName}، أريد الاستفسار عن شقة مساحة ${apt.size} في عمارة ${window.currentSelectedBuilding.name}`;
+            // استخراج السعر كرقم لحساب الـ Payment Plan
+            let rawPrice = apt.price ? apt.price.toString().replace(/[^\d.]/g, '') : "0";
+            let cleanPrice = parseFloat(rawPrice) || 0;
+            
+            const dynamicPaymentDiv = document.getElementById('dynamic-payment-plan');
+            if (cleanPrice > 0) {
+                dynamicPaymentDiv.innerHTML = `
+                    <div class="mt-4 bg-blue-50 p-4 rounded-xl border border-blue-200">
+                        <h4 class="font-black text-navy text-sm mb-3">💳 خطة الدفع (Payment Plan):</h4>
+                        <div class="flex gap-2 mb-2">
+                            <input type="number" id="apt-down-pct" placeholder="المقدم %" class="border p-2 text-xs rounded-lg w-1/2 font-bold outline-none focus:border-navy" oninput="window.calcAptPayment(${cleanPrice})">
+                            <input type="number" id="apt-months" placeholder="عدد الشهور" class="border p-2 text-xs rounded-lg w-1/2 font-bold outline-none focus:border-navy" oninput="window.calcAptPayment(${cleanPrice})">
+                        </div>
+                        <div id="apt-payment-result" class="text-sm text-slate-700 font-black mt-2 bg-white p-2 rounded-lg text-center min-h-[40px]"></div>
+                    </div>
+                `;
+            } else {
+                dynamicPaymentDiv.innerHTML = `<p class="mt-3 text-sm text-slate-500 font-bold">نظام السداد: ${apt.payment}</p>`;
+            }
 
             const gallery = document.getElementById('apt-modal-gallery'); gallery.innerHTML = '';
             if(apt.images && apt.images.length > 0) {
@@ -1672,15 +1739,15 @@
                 </div>
                 <div id="modal-b-status-zone"></div>
             </div>
-            <div id="modal-b-desc-box" class="my-3"></div>
-            <button id="google-maps-btn" class="btn w-full bg-slate-900 mb-4 text-xs font-bold">🗺️ اتجاهات المعاينة الحية عبر حوجل ماب GPS</button>
+            <div id="modal-b-desc-box" class="my-3 text-sm text-slate-600"></div>
+            <button id="google-maps-btn" class="w-full bg-slate-900 text-white py-3 rounded-xl mb-4 text-xs font-bold shadow-md hover:bg-slate-800 transition">🗺️ عرض الموقع الفعلي (Google Maps)</button>
             
             <div id="floors-section" class="animated-section">
                 <h3 class="text-sm font-bold text-slate-600 mb-3">⚙️ اختر الطابق لمعاينة المساحات المتوفرة:</h3>
                 <div id="modal-floors-list" class="space-y-1"></div>
             </div>
             <div id="sizes-section" class="animated-section fade-out">
-                <button class="btn bg-slate-500 text-xs py-1 px-3 mb-3" onclick="window.goBackToFloors()">⬅️ العودة للأدوار</button>
+                <button class="bg-slate-500 text-white rounded-xl text-xs py-2 px-4 mb-3 shadow-md transition hover:bg-slate-600" onclick="window.goBackToFloors()">⬅️ العودة للأدوار</button>
                 <h3 id="selected-floor-title" class="text-sm font-bold text-slate-600 mb-3">المساحات المتوفرة:</h3>
                 <div id="modal-sizes-list"></div>
             </div>
@@ -1688,21 +1755,25 @@
     </div>
 
     <div id="apartment-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right" style="max-width:480px; border-top: 6px solid #1e3a8a;">
+        <div class="modal-content-map text-right" style="max-width:520px; border-top: 6px solid #1e3a8a;">
             <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
             <h2 id="apt-modal-title" class="text-xl font-black text-navy">تفاصيل الشقة الفاخرة</h2>
             <hr class="my-3">
             <div id="apt-modal-gallery" class="gallery"></div>
-            <div class="bg-slate-50 p-4 rounded-xl space-y-2 border">
+            
+            <div class="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-200 relative">
                 <p class="text-sm">👁️ <strong>الإطلالة الكلية:</strong> <span id="apt-modal-view"></span></p>
-                <p class="text-sm">🛏️ <strong>التقسيم الداخلي والغرف:</strong> <span id="apt-modal-rooms"></span></p>
-                <p id="apt-modal-price" class="price-badge mt-2 inline-block"></p>
-                <span id="apt-modal-payment" class="payment-badge block"></span>
+                <p class="text-sm">🛏️ <strong>التقسيم الداخلي:</strong> <span id="apt-modal-rooms"></span></p>
+                <p id="apt-modal-price" class="price-badge mt-2 inline-block font-extrabold"></p>
             </div>
-            <button class="btn-premium-viewing" onclick="window.openViewingSchedulerModal()">📅 حجز موعد معاينة حية في الموقع</button>
-            <div class="action-buttons">
-                <a href="tel:01000000000" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصال هاتفي مباشر</a>
-                <a href="https://wa.me/201000000000" id="whatsapp-link-map" target="_blank" class="action-btn btn-whatsapp">💬 استفسار سريع واتساب</a>
+            
+            <div id="dynamic-payment-plan"></div>
+
+            <div class="flex flex-col gap-2 mt-5">
+                <button onclick="window.shareMapApartmentWhatsApp()" class="w-full bg-[#25D366] text-white p-4 rounded-xl font-black text-base shadow-lg hover:bg-green-600 transition flex justify-center items-center gap-2">
+                    📱 مشاركة تفاصيل الشقة واللوكيشن للعميل (واتساب)
+                </button>
+                <button class="btn-premium-viewing !mt-0 !py-3" onclick="window.openViewingSchedulerModal()">📅 حجز موعد معاينة حية في الموقع</button>
             </div>
         </div>
     </div>
@@ -1711,10 +1782,10 @@
         <div class="modal-content-map text-right" style="max-width: 400px; border-top: 6px solid #d97706;">
             <span class="modal-close" onclick="window.closeViewingSchedulerModal()">✕</span>
             <h3 class="text-amber-700 font-bold text-base mb-2">📅 تحديد موعد المقابلة والمعاينة</h3>
-            <div class="form-group"><label>اسم العميل الكريم:</label><input type="text" id="client-name-input" placeholder="اكتب اسمك بالكامل"></div>
-            <div class="form-group"><label>اختر اليوم المناسب:</label><input type="date" id="client-date-input"></div>
-            <div class="form-group"><label>اختر الساعة المفضلة:</label><input type="time" id="client-time-input"></div>
-            <button class="btn w-full py-3 mt-2 font-bold" style="background:#d97706;" onclick="window.sendViewingRequestToSalesWhatsApp()">⚡ إرسال الطلب وحفظ عمولتي بالواتساب</button>
+            <div class="form-group"><label>اسم العميل الكريم:</label><input type="text" id="client-name-input" placeholder="اكتب اسمك بالكامل" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
+            <div class="form-group mt-2"><label>اختر اليوم المناسب:</label><input type="date" id="client-date-input" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
+            <div class="form-group mt-2"><label>اختر الساعة المفضلة:</label><input type="time" id="client-time-input" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
+            <button class="w-full py-3 mt-4 text-white font-bold rounded-xl shadow-lg transition hover:bg-amber-600" style="background:#d97706;" onclick="window.sendViewingRequestToSalesWhatsApp()">⚡ تأكيد الموعد وإرساله للمبيعات</button>
         </div>
     </div>
 
@@ -1722,10 +1793,10 @@
         <div class="modal-content-map text-right" style="max-width: 420px;">
             <span class="modal-close" onclick="window.closeSalesModal()">✕</span>
             <h3 class="font-bold text-sm mb-3">🔑 إصدار روابط تتبع تيم المبيعات</h3>
-            <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: يوسف محمد"></div>
-            <div class="form-group"><label>رقم اتصال الموبايل:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678"></div>
-            <div class="form-group"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678"></div>
-            <button class="btn btn-success w-full mt-2" onclick="window.generateSalesLink()">🔗 إصدار ونسخ رابط السيلز الذكي</button>
+            <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: يوسف محمد" class="w-full border p-2 mt-1 rounded text-sm"></div>
+            <div class="form-group mt-2"><label>رقم اتصال الموبايل:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678" class="w-full border p-2 mt-1 rounded text-sm"></div>
+            <div class="form-group mt-2"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678" class="w-full border p-2 mt-1 rounded text-sm"></div>
+            <button class="w-full bg-green-600 text-white font-bold rounded-xl py-3 mt-4 shadow hover:bg-green-700 transition" onclick="window.generateSalesLink()">🔗 إصدار ونسخ رابط السيلز الذكي</button>
             <div id="generated-link-box" class="p-2 bg-slate-100 rounded text-xs mt-3 hidden break-all text-left"></div>
         </div>
     </div>
