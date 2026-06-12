@@ -9,32 +9,39 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
         
-        /* شريط علوي نظيف وبروفيشينال جداً متوافق مع الموبايل */
+        /* شريط علوي نظيف ومناسب للموبايل */
         #top-bar { background: #0f172a; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; gap: 10px; }
-        .brand-title { font-size: 18px; font-weight: bold; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+        .brand-title { font-size: 16px; font-weight: bold; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
         
-        /* تنسيق شريط البحث المودرن */
-        .search-container { flex: 1; max-width: 300px; display: flex; background: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, 0.2); transition: all 0.3s; }
+        .search-container { flex: 1; max-width: 260px; display: flex; background: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, 0.2); }
         .search-container:focus-within { background: white; border-color: #3b82f6; }
-        .search-input { background: transparent; border: none; padding: 6px; font-size: 14px; outline: none; width: 100%; color: white; }
+        .search-input { background: transparent; border: none; padding: 6px; font-size: 13px; outline: none; width: 100%; color: white; }
         .search-container:focus-within .search-input { color: #1e293b; }
 
-        /* شارات السيلز والأدمن النظيفة */
-        #sales-badge-info { font-size: 12px; font-weight: bold; padding: 6px 12px; border-radius: 6px; background: #1e293b; color: #38bdf8; border: 1px solid #0284c7; white-space: nowrap; }
-        #admin-indicator { font-size: 12px; font-weight: bold; padding: 6px 12px; border-radius: 6px; background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; cursor: pointer; display: none; }
+        #sales-badge-info { font-size: 11px; font-weight: bold; padding: 6px 10px; border-radius: 6px; background: #1e293b; color: #38bdf8; border: 1px solid #0284c7; white-space: nowrap; }
+        #admin-indicator { font-size: 11px; font-weight: bold; padding: 6px 10px; border-radius: 6px; background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; cursor: pointer; display: none; white-space: nowrap; }
 
-        .btn { background: #3b82f6; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s; }
+        .btn { background: #3b82f6; color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s; }
         .btn:hover { background: #2563eb; }
         .btn-success { background: #10b981; }
         .btn-danger { background: #ef4444; }
+        .btn-sales { background: #8b5cf6; }
 
         #main-container { display: flex; flex: 1; height: calc(100vh - 55px); width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
-        /* النوافذ المنبثقة التفاعلية */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; padding: 10px; }
+        /* تصميم النوافذ المنبثقة (Modals) الاحترافي المتجاوب مع الموبايل */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; padding: 12px; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-content { background: white; width: 100%; max-width: 650px; max-height: 85vh; border-radius: 20px; padding: 25px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); position: relative; }
+        .modal-content { background: white; width: 100%; max-width: 680px; max-height: 85vh; border-radius: 20px; padding: 25px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); position: relative; }
+        
+        /* تكييف النوافذ بالكامل على شاشات الموبايل الصغيرة */
+        @media (max-width: 600px) {
+            .modal-content { padding: 15px; max-height: 92vh; border-radius: 14px; }
+            .brand-title { font-size: 14px; }
+            .search-container { max-width: 160px; }
+        }
+
         .modal-close { position: absolute; top: 15px; left: 15px; font-size: 24px; cursor: pointer; color: #94a3b8; z-index: 10; }
 
         #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
@@ -56,18 +63,16 @@
         .gallery { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
         .gallery img { width: 110px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid #e2e8f0; }
 
-        /* 👑 زرار حجز المعاينة الفخم والمميز جداً */
-        .btn-premium-viewing { width: 100%; padding: 14px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3); transition: all 0.3s; display: flex; justify-content: center; align-items: center; gap: 8px; letter-spacing: 0.5px; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        .btn-premium-viewing:hover { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(217, 119, 6, 0.4); }
+        .btn-premium-viewing { width: 100%; padding: 14px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-premium-viewing:hover { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); transform: translateY(-2px); }
 
-        #admin-sidebar { width: 100%; max-width: 400px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1); padding: 20px; overflow-y: auto; z-index: 5; display: none; }
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px; }
-        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
-        .nested-box { border: 2px dashed #3b82f6; padding: 12px; margin-top: 12px; background: #f8fafc; border-radius: 10px; position: relative; }
-        .apt-edit-box { background: white; padding: 10px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 6px; position: relative; }
+        .form-group { margin-bottom: 12px; text-align: right; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 4px; font-size: 13px; color: #475569; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; outline: none; }
+        .nested-box { border: 2px dashed #3b82f6; padding: 15px; margin-top: 12px; background: #f8fafc; border-radius: 10px; position: relative; }
+        .apt-edit-box { background: white; padding: 12px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 6px; position: relative; }
         .image-preview img { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; margin: 2px; }
-        .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; position: absolute; top: 8px; left: 8px; }
+        .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; position: absolute; top: 12px; left: 12px; font-weight: bold; }
 
         .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
         .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 14px; }
@@ -77,33 +82,27 @@
 </head>
 <body>
 
-    <!-- شريط علوي فخم ونظيف جداً للعملاء والسيلز بدون زحمة وأزرار مشوهة للموبايل -->
     <div id="top-bar">
-        <div class="brand-title" id="app-title-trigger">
-            🏢 المنظومة العقارية الذكية
-        </div>
-        
-        <div class="search-container">
-            <input type="text" id="search-input" class="search-input" placeholder="ابحث برقم أو اسم العمارة..." oninput="searchBuilding()">
-        </div>
-        
+        <div class="brand-title" id="app-title-trigger">🏢 المنظومة العقارية الذكية</div>
+        <div class="search-container"><input type="text" id="search-input" class="search-input" placeholder="ابحث برقم أو اسم العمارة..." oninput="searchBuilding()"></div>
         <div class="top-btns-group">
             <div id="sales-badge-info"></div>
-            <!-- وسم يظهر فقط عندما يسجل المدير دخوله -->
             <div id="admin-indicator" onclick="toggleAdminMode()">🛑 الخروج من التحكم</div>
         </div>
     </div>
 
     <div id="main-container">
         <div id="map"></div>
+    </div>
 
-        <!-- لوحة التحكم الجانبية (مخفية تماماً ولا تفتح إلا بالرقم السري) -->
-        <div id="admin-sidebar">
-            <span style="float:left; cursor:pointer; font-weight:bold;" onclick="closeAdminSidebar()">✕</span>
-            <h3 id="admin-sidebar-title" style="margin-bottom:12px; color:#1e3a8a;">➕ إضافة عمارة جديدة</h3>
+    <!-- 🌟 نافذة التحكم الكبيرة للأدمن (طلبك الأساسي رجع نافذة منبثقة فخمة ومتجاوبة) -->
+    <div id="admin-modal" class="modal-overlay" onclick="closeModal(this, event)">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="modal-close" onclick="closeAdminModal()">✕</span>
+            <h3 id="admin-modal-title" style="margin-bottom:15px; color:#1e3a8a; text-align: right;">➕ إضافة عمارة جديدة</h3>
             
             <div class="form-group"><label>اسم العمارة:</label><input type="text" id="form-b-name" placeholder="مثال: أ56"></div>
-            <div class="form-group"><label>الوصف والموقع:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: شارع 5 أ - ثالث نمرة من البوابة"></textarea></div>
+            <div class="form-group"><label>الوصف والموقع:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: شارع 5 أ - ثالث نمرة من البوابة الأولى"></textarea></div>
             
             <div class="form-group">
                 <label>🏗️ حالة إنشاء العمارة ككل:</label>
@@ -123,18 +122,18 @@
                 <div id="b-images-preview" class="image-preview"></div>
             </div>
             
-            <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
-            <h4>🏢 الطوابق والشقق المتاحة:</h4>
+            <hr style="margin: 20px 0; border-top: 1px solid #e2e8f0;">
+            <h4 style="text-align: right; color:#0f172a;">🏢 الطوابق والشقق المتاحة:</h4>
             <div id="form-floors-container"></div>
             <button class="btn" style="background:#10b981; margin-top:10px; width:100%" onclick="addFloorForm()">➕ إضافة دور جديد</button>
             
-            <button class="btn btn-success" style="width:100%; margin-top:20px; padding:12px;" onclick="saveBuildingFromSidebar()">💾 حفظ البيانات وتحديث الخريطة</button>
+            <button class="btn btn-success" style="width:100%; margin-top:20px; padding:12px; font-size:16px;" onclick="saveBuildingFromSidebar()">💾 حفظ البيانات وتحديث الخريطة</button>
             <button class="btn btn-danger" id="sidebar-delete-btn" style="width:100%; margin-top:8px; padding:10px; display:none;">❌ حذف هذه العمارة تماماً</button>
             <button class="btn btn-sales" style="width:100%; margin-top:8px; padding:10px;" onclick="openSalesModal()">🔑 إصدار روابط السيلز للمبيعات</button>
         </div>
     </div>
 
-    <!-- 🌟 النافذة الأولى (العمارة والأدوار) -->
+    <!-- 🌟 نافذة العميل (العمارة والأدوار) -->
     <div id="building-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content">
             <span class="modal-close" onclick="closeBuildingModal()">✕</span>
@@ -148,11 +147,11 @@
                 <div id="modal-b-status-zone" style="text-align:left;"></div>
             </div>
             
-            <div id="modal-b-desc-box" class="info-box" style="background:#f8fafc; padding:12px; border-right:4px solid #3b82f6; margin:15px 0; border-radius:4px;"></div>
+            <div id="modal-b-desc-box" class="info-box" style="background:#f8fafc; padding:12px; border-right:4px solid #3b82f6; margin:15px 0; border-radius:4px; text-align: right;"></div>
             <button id="google-maps-btn" class="btn" style="background:#0f172a; width:100%; margin-bottom:15px;" target="_blank">🗺️ اتجاهات المعاينة بالـ GPS</button>
             
             <div id="floors-section" class="animated-section">
-                <h3 style="margin-bottom: 12px; font-size: 16px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
+                <h3 style="margin-bottom: 12px; font-size: 16px; color: #475569; text-align: right;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
                 <div id="modal-floors-list"></div>
             </div>
 
@@ -163,16 +162,16 @@
         </div>
     </div>
 
-    <!-- 🌟 النافذة الثانية (كارت الشقة الفخم والزرار الملوكي للمعاينة المباشرة) -->
+    <!-- 🌟 نافذة كارت الشقة الفاخرة -->
     <div id="apartment-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content" style="max-width: 500px; border-radius: 16px; border-top: 6px solid #3b82f6;">
             <span class="modal-close" onclick="closeApartmentModal()">✕</span>
-            <h2 id="apt-modal-title" style="color:#0f172a; font-size:22px;">تفاصيل الشقة الفاخرة</h2>
+            <h2 id="apt-modal-title" style="color:#0f172a; font-size:22px; text-align: right;">تفاصيل الشقة الفاخرة</h2>
             <hr style="margin: 12px 0; border-top: 1px solid #e2e8f0;">
             
             <div id="apt-modal-gallery" class="gallery"></div>
             
-            <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+            <div style="background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: right;">
                 <p style="margin-bottom: 6px; font-size: 15px;">👁️ <strong>الإطلالة:</strong> <span id="apt-modal-view"></span></p>
                 <p style="margin-bottom: 6px; font-size: 15px;">🛏️ <strong>التقسيم وغرف النوم:</strong> <span id="apt-modal-rooms"></span></p>
                 <div style="margin-top: 10px; display:flex; justify-content:space-between; align-items:center;">
@@ -181,45 +180,35 @@
                 <span id="apt-modal-payment" class="payment-badge"></span>
             </div>
             
-            <!-- 👑 زرار المعاينة الفخم والمميز جداً لجذب انتباه العميل فورا -->
             <button class="btn-premium-viewing" onclick="openViewingSchedulerModal()">📅 حجز موعد معاينة على أرض الواقع</button>
             
             <div class="action-buttons">
                 <a href="tel:01000000000" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصال هاتف مباشر</a>
-                <a href="https://wa.me/201000000000" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسار سريع واتساب</a>
+                <a href="https://wa.me/201000000000" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
             </div>
         </div>
     </div>
 
-    <!-- 🌟 نافذة حجز المعاينة المطور (الاسم + اليوم + الساعة) وإرسالها للسيلز -->
+    <!-- 🌟 نافذة حجز موعد المعاينة وتمريره للواتساب -->
     <div id="scheduler-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content" style="max-width: 420px; border-radius: 16px; border-top: 6px solid #d97706;">
             <span class="modal-close" onclick="closeViewingSchedulerModal()">✕</span>
-            <h2 style="color:#b45309; margin-bottom:10px;">📅 تحديد موعد المعاينة العقارية</h2>
-            <p style="font-size:13px; color:#64748b; margin-bottom:15px;">برجاء ملء بياناتك، وسيتم توجيه طلبك مباشرة إلى المستشار العقاري المسؤول لترتيب الزيارة في الموقع.</p>
+            <h2 style="color:#b45309; margin-bottom:10px; text-align: right;">📅 تحديد موعد المعاينة العقارية</h2>
+            <p style="font-size:13px; color:#64748b; margin-bottom:15px; text-align: right;">برجاء ملء بياناتك، وسيتم توجيه طلبك مباشرة إلى المستشار العقاري المسؤول لترتيب الزيارة.</p>
             
-            <div class="form-group">
-                <label>اسم العميل الكريم:</label>
-                <input type="text" id="client-name-input" placeholder="اكتب اسمك الثلاثي">
-            </div>
-            <div class="form-group">
-                <label>اختر اليوم المناسب:</label>
-                <input type="date" id="client-date-input">
-            </div>
-            <div class="form-group">
-                <label>اختر الساعة المفضلة:</label>
-                <input type="time" id="client-time-input">
-            </div>
+            <div class="form-group"><label>اسم العميل الكريم:</label><input type="text" id="client-name-input" placeholder="اكتب اسمك الثلاثي"></div>
+            <div class="form-group"><label>اختر اليوم المناسب:</label><input type="date" id="client-date-input"></div>
+            <div class="form-group"><label>اختر الساعة المفضلة:</label><input type="time" id="client-time-input"></div>
             
             <button class="btn btn-success" style="width:100%; padding:14px; font-size:15px; background:#d97706;" onclick="sendViewingRequestToSalesWhatsApp()">⚡ إرسال طلب المعاينة وتأكيده عبر واتساب</button>
         </div>
     </div>
 
-    <!-- 🌟 لوحة إعداد روابط السيلز وحفظ العمولات -->
+    <!-- 🌟 نافذة إصدار روابط السيلز -->
     <div id="sales-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
             <span class="modal-close" onclick="closeSalesModal()">✕</span>
-            <h2>🔑 إصدار روابط تتبع السيلز والمبيعات</h2>
+            <h2 style="text-align: right;">🔑 إصدار روابط تتبع المبيعات</h2>
             <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: يوسف محمد"></div>
             <div class="form-group"><label>رقم هاتف الاتصال:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678"></div>
             <div class="form-group"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678"></div>
@@ -243,12 +232,11 @@
         let currentTempCoords = null;
         let isEditingExisting = false;
         let editingBuildingId = null;
-        let currentActiveApartmentData = null; // لحفظ بيانات الشقة المفتوحة حالياً
+        let currentActiveApartmentData = null;
 
         let currentSidebarBuildingImages = [];
         let currentSidebarAptImagesMap = {}; 
 
-        // 🧠 الـ LocalStorage السحري لمنع ضياع البيانات أثناء الريفرش والتحديثات على جهازك
         let savedData = localStorage.getItem('real_estate_buildings');
         let allBuildings = savedData ? JSON.parse(savedData) : [
             {
@@ -279,14 +267,11 @@
             }
         }
 
-        // 🔑 حيلة سرية ملوكية لدخول الأدمن بدون تشويه شكل الموقع (اضغط مرتين على عنوان التطبيق فوق)
+        // 🔐 دبل كليك سري للدخول الأدمن
         document.getElementById('app-title-trigger').addEventListener('dblclick', function() {
-            let password = prompt("برجاء إدخال الرقم السري للوحة التحكم والتحكم بالعماير:");
-            if(password === "1234") { 
-                toggleAdminMode();
-            } else if(password !== null) {
-                alert("عذراً، الرقم السري غير صحيح!");
-            }
+            let password = prompt("برجاء إدخال الرقم السري للوحة التحكم:");
+            if(password === "1234") { toggleAdminMode(); } 
+            else if(password !== null) { alert("عذراً، الرقم السري غير صحيح!"); }
         });
 
         function searchBuilding() {
@@ -324,22 +309,22 @@
             const indicator = document.getElementById('admin-indicator');
             if(adminMode) {
                 indicator.style.display = 'inline-block';
-                document.getElementById('admin-sidebar').style.display = 'block';
-                alert("وضع المدير مفعل! يمكنك الآن الضغط على الخريطة لإضافة عمارة أو تعديل العماير القديمة.");
+                alert("وضع المدير مفعل! اضغط على أي مكان في الخريطة لتفتح نافذة الإضافة المنبثقة.");
             } else {
                 indicator.style.display = 'none';
-                closeAdminSidebar();
+                closeAdminModal();
             }
         }
 
+        // الضغط على الخريطة يفتح الـ Modal بدل السايد بار البايخ
         map.on('click', function(e) {
             if (!adminMode) return;
             isEditingExisting = false; editingBuildingId = null;
             currentTempCoords = [e.latlng.lat, e.latlng.lng];
             if (tempMarker) map.removeLayer(tempMarker);
             tempMarker = L.marker(currentTempCoords).addTo(map);
-            
-            document.getElementById('admin-sidebar-title').innerText = "➕ إضافة عمارة جديدة";
+
+            document.getElementById('admin-modal-title').innerText = "➕ إضافة عمارة جديدة";
             document.getElementById('form-b-name').value = '';
             document.getElementById('form-b-desc').value = '';
             document.getElementById('form-b-status').value = 'مبنية';
@@ -349,12 +334,13 @@
             document.getElementById('form-floors-container').innerHTML = '';
             document.getElementById('sidebar-delete-btn').style.display = 'none';
             currentSidebarBuildingImages = []; currentSidebarAptImagesMap = {};
-            document.getElementById('admin-sidebar').style.display = 'block';
+            
+            document.getElementById('admin-modal').classList.add('active');
         });
 
         function openAdminEditSidebar(b) {
             isEditingExisting = true; editingBuildingId = b.id; currentTempCoords = b.coords;
-            document.getElementById('admin-sidebar-title').innerText = `📝 تعديل بيانات: ${b.name}`;
+            document.getElementById('admin-modal-title').innerText = `📝 تعديل بيانات: ${b.name}`;
             document.getElementById('form-b-name').value = b.name;
             document.getElementById('form-b-desc').value = b.locationDesc;
             document.getElementById('form-b-status').value = b.buildingStatus || 'مبنية';
@@ -362,8 +348,7 @@
             toggleBuildingDeliveryInput(b.buildingStatus || 'مبنية');
 
             currentSidebarBuildingImages = b.images || [];
-            const bPreview = document.getElementById('b-images-preview');
-            bPreview.innerHTML = '';
+            const bPreview = document.getElementById('b-images-preview'); bPreview.innerHTML = '';
             currentSidebarBuildingImages.forEach(src => { bPreview.innerHTML += `<img src="${src}"/>`; });
 
             const container = document.getElementById('form-floors-container'); container.innerHTML = '';
@@ -380,7 +365,7 @@
                 fIndex++; const floorId = `floor-${fIndex}`;
                 const floorHtml = `
                     <div class="nested-box" id="${floorId}">
-                        <button class="delete-icon-btn" style="top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
+                        <button class="delete-icon-btn" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
                         <label>الدور:</label><input type="text" class="floor-name-input" value="${floorName}">
                         <div class="apts-box"></div>
                         <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
@@ -393,7 +378,7 @@
                     currentSidebarAptImagesMap[aptUid] = apt.images || [];
                     const aptHtml = `
                         <div class="apt-edit-box" id="${aptUid}">
-                            <button class="delete-icon-btn" style="top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
+                            <button class="delete-icon-btn" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
                             <input type="text" class="apt-size" placeholder="المساحة" value="${apt.size}">
                             <input type="text" class="apt-price" placeholder="السعر" value="${apt.price.replace(/[^\d]/g, '')}" style="margin-top:4px;">
                             <input type="text" class="apt-view" placeholder="الإطلالة" value="${apt.view}" style="margin-top:4px;">
@@ -411,10 +396,10 @@
                 if(confirm(`هل أنت متأكد من حذف عمارة ${b.name} تماماً؟`)) {
                     allBuildings = allBuildings.filter(x => x.id !== b.id);
                     localStorage.setItem('real_estate_buildings', JSON.stringify(allBuildings));
-                    closeAdminSidebar(); renderMarkers();
+                    closeAdminModal(); renderMarkers();
                 }
             };
-            document.getElementById('admin-sidebar').style.display = 'block';
+            document.getElementById('admin-modal').classList.add('active');
         }
 
         let floorCount = 900;
@@ -422,7 +407,7 @@
             floorCount++; const container = document.getElementById('form-floors-container'); const floorId = `floor-${floorCount}`;
             const html = `
                 <div class="nested-box" id="${floorId}">
-                    <button class="delete-icon-btn" style="top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
+                    <button class="delete-icon-btn" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
                     <label>الدور:</label><input type="text" class="floor-name-input" placeholder="مثال: الدور الثالث">
                     <div class="apts-box"></div>
                     <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
@@ -437,7 +422,7 @@
             currentSidebarAptImagesMap[aptUid] = [];
             const html = `
                 <div class="apt-edit-box" id="${aptUid}">
-                    <button class="delete-icon-btn" style="top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
+                    <button class="delete-icon-btn" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
                     <input type="text" class="apt-size" placeholder="المساحة: 125 متر" style="margin-top:4px;">
                     <input type="text" class="apt-price" placeholder="السعر الإجمالي: 2000000" style="margin-top:4px;">
                     <input type="text" class="apt-view" placeholder="الإطلالة" style="margin-top:4px;">
@@ -510,11 +495,10 @@
                 });
             }
 
-            // الحفظ النهائي في ذاكرة المتصفح
             localStorage.setItem('real_estate_buildings', JSON.stringify(allBuildings));
-            alert("تم حفظ العمارة وتثبيتها بنجاح!");
+            alert("تم الحفظ بنجاح!");
             if(tempMarker) map.removeLayer(tempMarker); tempMarker = null;
-            toggleAdminMode(); renderMarkers();
+            closeAdminModal(); renderMarkers();
         }
 
         function openBuildingModal(b) {
@@ -537,9 +521,7 @@
             const gallery = document.getElementById('modal-b-gallery'); gallery.innerHTML = '';
             if(b.images && b.images.length > 0) {
                 b.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')"/>`; });
-            } else {
-                gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور للواجهة حالياً.</p>';
-            }
+            } else { gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور للواجهة حالياً.</p>'; }
 
             const floorsList = document.getElementById('modal-floors-list'); floorsList.innerHTML = '';
             const uniqueFloors = [...new Set(b.apartments.map(a => a.floor))];
@@ -569,7 +551,7 @@
 
         let currentActiveAptPrice = 0;
         function openApartmentModal(apt) {
-            currentActiveApartmentData = apt; // تخرين بيانات الشقة المفتوحة حالياً من أجل فورمة المعاينة
+            currentActiveApartmentData = apt;
             document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}م`;
             document.getElementById('apt-modal-view').innerText = apt.view;
             document.getElementById('apt-modal-rooms').innerText = apt.rooms;
@@ -589,37 +571,23 @@
             document.getElementById('apartment-modal').classList.add('active');
         }
 
-        // 📅 فتح وقفل فورمة حجز موعد المعاينة العقارية
         function openViewingSchedulerModal() { document.getElementById('scheduler-modal').classList.add('active'); }
         function closeViewingSchedulerModal() { document.getElementById('scheduler-modal').classList.remove('active'); }
 
-        // ⚡ سحب بيانات العميل وتمريرها في رسالة واتساب سينمائية موجهة للسيلز المسؤول فورا
         function sendViewingRequestToSalesWhatsApp() {
             const clientName = document.getElementById('client-name-input').value.trim();
             const viewingDate = document.getElementById('client-date-input').value;
             const viewingTime = document.getElementById('client-time-input').value;
+            if(!clientName || !viewingDate || !viewingTime) return alert("برجاء إدخال اسمك وتحديد اليوم والساعة!");
 
-            if(!clientName || !viewingDate || !viewingTime) {
-                return alert("برجاء إدخال اسمك وتحديد اليوم والساعة لترتيب موعد المعاينة على أرض الواقع!");
-            }
-
-            // تنسيق الرسالة بشكل بروفيشينال جداً تليق بشركة كبيرة
             const messageText = `مرحباً أ/ ${currentSalesData.name}،\nلقد قام العميل كابتن: *${clientName}* بطلب حجز موعد معاينة حية لشقة من خلال تطبيق الخريطة الذكية.\n\n📊 *تفاصيل الطلب العقاري:*\n- العمارة: *عمارة ${currentSelectedBuilding.name}*\n- المساحة: *${currentActiveApartmentData.size} متر*\n- الطابق: *${currentActiveApartmentData.floor}*\n\n📅 *موعد المعاينة المقترح من العميل:*\n- التاريخ: *${viewingDate}*\n- الوقت المفصل: *${viewingTime}*\n\nبرجاء التواصل الفوري مع العميل الكريم لتأكيد الزيارة وحفظ عمولتك الفورية.`;
-
-            // توجيه الرسالة فورياً لرقم الواتساب الخاص بالسيلز المحفوظ في اللينك
-            const whatsappUrl = `https://wa.me/${currentSalesData.whatsapp}?text=${encodeURIComponent(messageText)}`;
-            window.open(whatsappUrl, '_blank');
-            
-            closeViewingSchedulerModal();
-            closeApartmentModal();
+            window.open(`https://wa.me/${currentSalesData.whatsapp}?text=${encodeURIComponent(messageText)}`, '_blank');
+            closeViewingSchedulerModal(); closeApartmentModal();
         }
 
         function calculateFinancing() {
             if(currentActiveAptPrice === 0) return;
-            let downPayment = currentActiveAptPrice * 0.10; 
-            let remaining = currentActiveAptPrice - downPayment;
-            let monthlyInstallment = remaining / 18; 
-            
+            let downPayment = currentActiveAptPrice * 0.10; let remaining = currentActiveAptPrice - downPayment; let monthlyInstallment = remaining / 18; 
             const calcBox = document.getElementById('calc-results');
             calcBox.innerHTML = `
                 <p style="color:#15803d; font-weight:bold;">📊 نظام السداد الافتراضي (مقدم 10% والباقي على 18 شهر):</p>
@@ -630,6 +598,7 @@
 
         function openSalesModal() { document.getElementById('sales-modal').classList.add('active'); }
         function closeSalesModal() { document.getElementById('sales-modal').classList.remove('active'); }
+        function closeAdminModal() { document.getElementById('admin-modal').classList.remove('active'); if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; }
         
         function generateSalesLink() {
             const name = document.getElementById('sales-name-input').value;
@@ -650,7 +619,7 @@
         function closeBuildingModal() { document.getElementById('building-modal').classList.remove('active'); }
         function closeApartmentModal() { document.getElementById('apartment-modal').classList.remove('active'); }
         function closeModal(modal, e) { if(e.target === modal) modal.classList.remove('active'); }
-        function closeAdminSidebar() { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; }
+        function closeAdminSidebar() { closeAdminModal(); }
 
         checkSalesQuery();
         renderMarkers();
