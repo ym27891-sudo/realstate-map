@@ -30,6 +30,16 @@
         #main-container { display: flex; flex: 1; height: 100vh; width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
+        /* تأثير النبض الإبداعي لدبابيس الخريطة */
+        .leaflet-marker-icon {
+            filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.6));
+            animation: pulseGlow 1.5s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            from { filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.4)); }
+            to { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9)); }
+        }
+
         /* كارت السيلز العائم الجديد (يظهر للعميل) */
         #floating-sales-badge { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000; display: none; font-weight: bold; border-right: 4px solid #3b82f6; backdrop-filter: blur(5px); }
         
@@ -79,7 +89,6 @@
         .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
         .delete-icon-btn:hover { background: #ef4444; color: white; }
         
-        /* تنسيق زر حجز الموعد الجديد الجذاب */
         .btn-appointment { background: linear-gradient(135deg, #8b5cf6, #6d28d9); color: white; border: none; padding: 15px; border-radius: 12px; text-decoration: none; font-weight: 900; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 16px; cursor: pointer; transition: all 0.3s; width: 100%; margin-bottom: 12px; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); text-transform: uppercase; }
         .btn-appointment:hover { background: linear-gradient(135deg, #7c3aed, #5b21b6); transform: translateY(-3px); box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6); }
 
@@ -109,7 +118,6 @@
 
         <div id="map"></div>
 
-        <!-- الشريط الجانبي للإدارة -->
         <div id="admin-sidebar">
             <span style="float:left; cursor:pointer; font-weight:bold; font-size:18px;" onclick="window.closeAdminSidebar()">✕</span>
             <h3 id="admin-sidebar-title" style="margin-bottom:15px; color:#1e3a8a;">➕ إضافة موقع عمارة</h3>
@@ -176,6 +184,10 @@
                 </div>
                 <div id="modal-b-status-zone" style="text-align:left;"></div>
             </div>
+            
+            <!-- الشارات الذكية هتظهر هنا -->
+            <div id="smart-badges-container" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;"></div>
+            
             <div id="modal-b-desc-box" class="info-box" style="margin-top:15px; font-size:14px; color:#334155;"></div>
             
             <div id="floors-section" class="animated-section" style="margin-top:20px;">
@@ -223,7 +235,7 @@
                 </div>
             </div>
             
-            <!-- زر الحجز الفخم الجديد -->
+            <!-- زر الحجز الفخم -->
             <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
 
             <!-- زراير التواصل العادية -->
@@ -234,7 +246,7 @@
         </div>
     </div>
 
-    <!-- مودال حجز الموعد الجديد -->
+    <!-- مودال حجز الموعد -->
     <div id="appointment-modal" class="modal-overlay" onclick="window.closeModal(this, event)" style="z-index: 2500;">
         <div class="modal-content" style="max-width: 400px; border-top: 6px solid #8b5cf6;">
             <span class="modal-close" onclick="window.closeAppointmentModal()">✕</span>
@@ -286,9 +298,8 @@
         const db = firebase.firestore();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const isCustomerLink = urlParams.has('sales_name'); // تأكيد إن ده لينك مبعوت لعميل
+        const isCustomerLink = urlParams.has('sales_name'); 
 
-        // نظام الحماية الصارم: لو ده مش لينك عميل، وأنت مسجل دخول أدمن، هيظهر الشريط
         if (!isCustomerLink) {
             firebase.auth().onAuthStateChanged(async (user) => {
                 if (user) {
@@ -321,7 +332,6 @@
         let currentSalesData = { name: "خدمة العملاء", phone: "01000000000", whatsapp: "201000000000" };
         let currentSelectedBuildingData = null; 
         
-        // متغير عالمي لحفظ كود الشقة المطلوب حجزها
         window.currentBookingAptCode = "";
 
         let currentSidebarBuildingImages = [];
@@ -646,11 +656,37 @@
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px;">📸 لم يتم رفع صور للواجهة حالياً.</p>';
             }
 
+            // الشارات الذكية (Smart Badges) - اللمسة الإبداعية
+            let hasComm = bApts.some(a => ['تجاري', 'محل', 'بدروم'].some(k => (a.floor||'').includes(k)));
+            let hasAdmin = bApts.some(a => ['اداري', 'إداري', 'مكتب', 'عيادة'].some(k => (a.floor||'').includes(k)));
+            let hasRes = bApts.some(a => {
+                let n = parseInt(a.floor);
+                return (!isNaN(n) && n > 0) || (a.floor||'').includes('دور') || (a.floor||'').includes('ارضي') || (a.floor||'').includes('أرضي');
+            });
+
+            let badgesHtml = '';
+            if(hasComm) badgesHtml += `<span style="background:#fef08a; color:#9a3412; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">🛒 متاح تجاري</span>`;
+            if(hasAdmin) badgesHtml += `<span style="background:#e0e7ff; color:#1e3a8a; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">💼 متاح إداري</span>`;
+            if(hasRes) badgesHtml += `<span style="background:#dcfce7; color:#166534; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">🏠 متاح سكني</span>`;
+            
+            document.getElementById('smart-badges-container').innerHTML = badgesHtml;
+
             const floorsList = document.getElementById('modal-floors-list');
             floorsList.innerHTML = '';
             
             const uniqueFloors = [...new Set(bApts.map(a => a.floor || 'غير محدد'))];
-            uniqueFloors.sort((a,b) => parseInt(a) - parseInt(b));
+            
+            // خوارزمية الفرز الذكية للأدوار (تجاري -> إداري -> أرقام)
+            uniqueFloors.sort((a, b) => {
+                const getWeight = (str) => {
+                    let s = str.toString().trim();
+                    if(s.includes('تجار') || s.includes('محل') || s.includes('بدروم')) return -2;
+                    if(s.includes('ادار') || s.includes('مكتب') || s.includes('عياد')) return -1;
+                    let n = parseInt(s.replace(/[^0-9-]/g, ''));
+                    return isNaN(n) ? 99 : n;
+                };
+                return getWeight(a) - getWeight(b);
+            });
             
             uniqueFloors.forEach(floorName => {
                 floorsList.innerHTML += `<button class="floor-btn" onclick="window.selectFloor('${floorName}')">🏢 ${floorName}</button>`;
@@ -669,6 +705,9 @@
             const { mapB, bApts } = currentSelectedBuildingData;
             const filteredApts = bApts.filter(a => (a.floor || 'غير محدد') === floorName);
             
+            // ترتيب الشقق بناءً على المساحة جوه الدور الواحد
+            filteredApts.sort((a, b) => (parseFloat(a.size) || 0) - (parseFloat(b.size) || 0));
+
             filteredApts.forEach(apt => {
                 const override = (mapB.aptOverrides && mapB.aptOverrides[apt.code]) || {};
                 const template = (mapB.sizeTemplates && mapB.sizeTemplates[apt.size]) || {};
@@ -695,7 +734,6 @@
             const apt = bApts.find(a => a.code === aptCode);
             if(!apt) return;
 
-            // حفظ الكود عشان نستخدمه في مودال الحجز
             window.currentBookingAptCode = apt.code;
 
             const override = (mapB.aptOverrides && mapB.aptOverrides[apt.code]) || {};
@@ -743,7 +781,6 @@
             document.getElementById('apartment-modal').classList.add('active');
         };
 
-        // --- وظائف نافذة حجز موعد المعاينة ---
         window.openAppointmentModal = () => {
             document.getElementById('appoint-apt-code').innerText = window.currentBookingAptCode || '';
             document.getElementById('appointment-modal').classList.add('active');
@@ -765,7 +802,6 @@
                 return;
             }
 
-            // محاولة حفظ الطلب في قاعدة البيانات للإدارة (صامتة عشان لو الـ Rules منعتها متعملش مشكلة للعميل)
             try {
                 await db.collection('appointments').add({
                     aptCode: code,
@@ -780,7 +816,6 @@
                 console.log("سيتم التحويل للواتساب مباشرة.");
             }
 
-            // تحضير رسالة الواتساب الجاهزة
             const message = `مرحباً أستاذ ${currentSalesData.name}،
 أرغب في تأكيد حجز موعد لمعاينة الوحدة السكنية:
 📌 كود الوحدة: ${code}
@@ -805,7 +840,6 @@
                 currentSalesData.phone = urlParams.get('sales_phone') || "01000000000";
                 currentSalesData.whatsapp = urlParams.get('sales_ws') || "201000000000";
                 
-                // إظهار كارت السيلز العائم للعميل على الخريطة
                 const floatingBadge = document.getElementById('floating-sales-badge');
                 document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
                 floatingBadge.style.display = 'block';
