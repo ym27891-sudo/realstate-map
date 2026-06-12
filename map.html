@@ -13,7 +13,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
         
-        /* الشريط مخفي تماماً للعملاء */
         #top-bar { display: none; background: #0f172a; padding: 15px 20px; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
         .top-btns-group { display: flex; gap: 10px; }
         
@@ -30,7 +29,6 @@
         #main-container { display: flex; flex: 1; height: 100vh; width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
-        /* تأثير النبض الإبداعي لدبابيس الخريطة */
         .leaflet-marker-icon {
             filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.6));
             animation: pulseGlow 1.5s infinite alternate;
@@ -40,7 +38,6 @@
             to { filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9)); }
         }
 
-        /* كارت السيلز العائم الجديد (يظهر للعميل) */
         #floating-sales-badge { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000; display: none; font-weight: bold; border-right: 4px solid #3b82f6; backdrop-filter: blur(5px); }
         
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
@@ -185,7 +182,6 @@
                 <div id="modal-b-status-zone" style="text-align:left;"></div>
             </div>
             
-            <!-- الشارات الذكية هتظهر هنا -->
             <div id="smart-badges-container" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;"></div>
             
             <div id="modal-b-desc-box" class="info-box" style="margin-top:15px; font-size:14px; color:#334155;"></div>
@@ -235,10 +231,8 @@
                 </div>
             </div>
             
-            <!-- زر الحجز الفخم -->
             <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
 
-            <!-- زراير التواصل العادية -->
             <div class="action-buttons">
                 <a href="#" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="#" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
@@ -472,7 +466,23 @@
             const sizesContainer = document.getElementById('size-templates-container');
             sizesContainer.innerHTML = '';
             uniqueSizes.forEach(size => {
-                if(!currentSizeTemplates[size]) currentSizeTemplates[size] = { view: '', rooms: '', payment: '', images: [] };
+                if(!currentSizeTemplates[size]) {
+                    // --- النظام الذكي לאقتراح التقسيم ---
+                    let defaultRooms = "";
+                    let relatedProps = bProps.filter(p => p.size == size);
+                    let isCommOrAdmin = relatedProps.some(p => ['تجاري', 'محل', 'بدروم', 'اداري', 'إداري', 'مكتب', 'عيادة'].some(k => (p.floor||'').includes(k)));
+                    
+                    if(!isCommOrAdmin) {
+                        let numSize = parseFloat(size);
+                        if(numSize >= 80 && numSize <= 105) {
+                            defaultRooms = "غرفتين وحمام";
+                        } else if(numSize > 105) {
+                            defaultRooms = "3 غرف و 2 حمام";
+                        }
+                    }
+                    
+                    currentSizeTemplates[size] = { view: '', rooms: defaultRooms, payment: '', images: [] };
+                }
                 const tData = currentSizeTemplates[size];
                 
                 sizesContainer.innerHTML += `
@@ -656,7 +666,6 @@
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px;">📸 لم يتم رفع صور للواجهة حالياً.</p>';
             }
 
-            // الشارات الذكية (Smart Badges) - اللمسة الإبداعية
             let hasComm = bApts.some(a => ['تجاري', 'محل', 'بدروم'].some(k => (a.floor||'').includes(k)));
             let hasAdmin = bApts.some(a => ['اداري', 'إداري', 'مكتب', 'عيادة'].some(k => (a.floor||'').includes(k)));
             let hasRes = bApts.some(a => {
@@ -676,7 +685,7 @@
             
             const uniqueFloors = [...new Set(bApts.map(a => a.floor || 'غير محدد'))];
             
-            // خوارزمية الفرز الذكية للأدوار (تجاري -> إداري -> أرقام)
+            // خوارزمية الفرز الذكية للأدوار
             uniqueFloors.sort((a, b) => {
                 const getWeight = (str) => {
                     let s = str.toString().trim();
@@ -705,7 +714,6 @@
             const { mapB, bApts } = currentSelectedBuildingData;
             const filteredApts = bApts.filter(a => (a.floor || 'غير محدد') === floorName);
             
-            // ترتيب الشقق بناءً على المساحة جوه الدور الواحد
             filteredApts.sort((a, b) => (parseFloat(a.size) || 0) - (parseFloat(b.size) || 0));
 
             filteredApts.forEach(apt => {
