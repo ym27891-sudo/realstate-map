@@ -312,11 +312,18 @@
             renderTabs();
         };
 
+        window.openProfileEdit = () => {
+            document.getElementById('setupAgentNameInput').value = window.currentAgentName || '';
+            document.getElementById('setupAgentPhoneInput').value = currentAgentPhone !== '01000000000' ? currentAgentPhone : '';
+            document.getElementById('setupAgentWsInput').value = currentAgentWhatsapp !== '201000000000' ? currentAgentWhatsapp : '';
+            document.getElementById('nameSetupModal').style.display = 'flex';
+        };
+
         window.saveAgentNameSetup = async () => {
             const name = document.getElementById('setupAgentNameInput').value.trim();
             const phone = document.getElementById('setupAgentPhoneInput').value.trim();
             const ws = document.getElementById('setupAgentWsInput').value.trim();
-            if(!name || !phone || !ws) { alert("أدخل بياناتك كاملة (الاسم، التليفون، الواتس) عشان الماب تشتغل معاك صح!"); return; }
+            if(!name || !phone || !ws) { alert("أدخل بياناتك كاملة (الاسم، التليفون، الواتس) عشان اللينك بتاعك يوصل للعميل سليم!"); return; }
             await updateDoc(doc(db, 'users', loggedInUserDocId), { name: name, phone: phone, whatsapp: ws });
             window.currentAgentName = name;
             currentAgentPhone = phone;
@@ -1189,7 +1196,6 @@ ${finalLink}
             <div class="flex items-center gap-4 font-black">
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
                 
-                <!-- زر الانتقال للخريطة الخاص بالأدمن -->
                 <button id="adminMapBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">خريطة المواقع 🗺️</button>
                 
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
@@ -1197,7 +1203,11 @@ ${finalLink}
                     <div class="bg-navy p-2 rounded-xl text-white shadow-md text-lg">🔔</div>
                     <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-white font-black">0</span>
                 </div>
-                <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl border border-red-100 uppercase italic">خروج</button>
+                
+                <!-- الزر الجديد لتعديل البروفايل -->
+                <button onclick="window.openProfileEdit()" class="text-xs text-blue-600 font-black bg-blue-50 px-4 py-2 rounded-xl border border-blue-100 uppercase italic transition hover:bg-blue-100">بياناتي 👤</button>
+                
+                <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl border border-red-100 uppercase italic hover:bg-red-100 transition">خروج</button>
             </div>
             <div id="notifPanel" class="hidden absolute top-20 left-4 w-64 bg-white shadow-2xl rounded-2xl border border-slate-100 z-[999] overflow-hidden font-black">
                 <div class="p-3 bg-slate-50 border-b font-black text-[10px] text-navy italic uppercase text-right">آخر التحديثات</div>
@@ -1280,8 +1290,8 @@ ${finalLink}
     
     <div id="nameSetupModal" style="display:none;" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4 z-[10005]">
         <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-center font-black">
-            <h3 class="text-navy font-black text-base mb-2">إعداد هويتك التسويقية فريد 👋</h3>
-            <p class="text-[11px] text-slate-400 mb-4 font-medium">أضف بياناتك ليتم توليد اللينك بأرقامك.</p>
+            <h3 class="text-navy font-black text-base mb-2">إعداد هويتك التسويقية يا بطل 👋</h3>
+            <p class="text-[11px] text-slate-400 mb-4 font-medium">أضف أرقامك عشان العملاء يتواصلوا معاك إنت شخصياً من الخريطة.</p>
             <input id="setupAgentNameInput" type="text" placeholder="اسمك الثنائي (مثال: محمد سعيد)" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-3">
             <input id="setupAgentPhoneInput" type="text" placeholder="رقم الاتصال المباشر (مثال: 01012345678)" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-3">
             <input id="setupAgentWsInput" type="text" placeholder="رقم الواتساب بمفتاح الدولة (مثال: 201012345678)" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-4">
