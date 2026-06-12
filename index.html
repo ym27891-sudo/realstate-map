@@ -9,7 +9,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
         
-        /* شريط علوي مودرن */
         #top-bar { background: #0f172a; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
         .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s ease; }
         .btn:hover { background: #2563eb; transform: translateY(-1px); }
@@ -21,7 +20,6 @@
         #main-container { display: flex; flex: 1; height: calc(100vh - 60px); width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
         
-        /* ستايل النوافذ المنبثقة الفخمة (Modals) */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         
@@ -31,7 +29,6 @@
         .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; transition: color 0.2s; }
         .modal-close:hover { color: #1e293b; }
 
-        /* ستايل الأنيميشن الخاص بالانتقال بين الأدوار والمساحات */
         .animated-section { transition: all 0.3s ease; opacity: 1; transform: translateX(0); }
         .animated-section.fade-out { opacity: 0; transform: translateX(50px); display: none; }
         .animated-section.fade-in { animation: slideIn 0.4s forwards; }
@@ -41,26 +38,25 @@
             to { opacity: 1; transform: translateX(0); }
         }
 
-        /* أزرار الأدوار الشيك */
         .floor-btn { background: #f1f5f9; color: #1e293b; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; cursor: pointer; text-align: center; font-size: 16px; font-weight: bold; transition: all 0.2s; margin-bottom: 10px; display: block; width: 100%; }
         .floor-btn:hover { background: #3b82f6; color: white; border-color: #3b82f6; transform: scale(1.02); }
 
-        /* كروت المساحات */
         .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; display: flex; justify-content: space-between; align-items: center; }
         .size-card:hover { border-color: #10b981; background: #f0fdf4; transform: scale(1.01); }
 
-        /* تاجات الديزاين */
         .tag { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; margin-left: 6px; }
+        
+        /* تاغات الحالة الجديدة للعميل */
+        .status-ready { display: inline-block; background: #dcfce7; color: #166534; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
+        .status-construction { display: inline-block; background: #ffedd5; color: #9a3412; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
+        
         .price-badge { background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 15px; }
-        .payment-badge { background: #ffedd5; color: #c2410c; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-top: 8px; display: inline-block; }
+        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-top: 8px; display: inline-block; border: 1px solid #e2e8f0; }
 
-        /* ألبوم الصور */
-        .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; scrollbar-width: thin; }
-        .gallery img { width: 140px; height: 100px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 2px solid #e2e8f0; transition: transform 0.2s; }
-        .gallery img:hover { transform: scale(1.05); border-color: #3b82f6; }
-        .main-view-img { width: 100%; height: 260px; object-fit: cover; border-radius: 15px; margin-bottom: 15px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; }
+        .gallery img { width: 140px; height: 100px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 2px solid #e2e8f0; }
+        .main-view-img { width: 100%; height: 260px; object-fit: cover; border-radius: 15px; margin-bottom: 15px; }
 
-        /* فورمة الإدخال الجانبية (للأدمن فقط) */
         #admin-sidebar { width: 400px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1); padding: 25px; overflow-y: auto; z-index: 5; display: none; }
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
@@ -78,6 +74,7 @@
     <div id="main-container">
         <div id="map"></div>
 
+        <!-- سايد بار الإدخال للأدمن -->
         <div id="admin-sidebar">
             <span style="float:left; cursor:pointer;" onclick="closeAdminSidebar()">✕</span>
             <h3 style="margin-bottom:15px;">➕ إضافة عمارة جديدة</h3>
@@ -93,6 +90,7 @@
         </div>
     </div>
 
+    <!-- 🌟 النافذة المنبثقة الأولى (العمارة والأدوار) -->
     <div id="building-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content">
             <span class="modal-close" onclick="closeBuildingModal()">✕</span>
@@ -114,17 +112,25 @@
         </div>
     </div>
 
+    <!-- 🌟 النافذة المنبثقة الثانية (كارت الشقة مع الميزات الجديدة) -->
     <div id="apartment-modal" class="modal-overlay" onclick="closeModal(this, event)">
         <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #10b981;">
             <span class="modal-close" onclick="closeApartmentModal()">✕</span>
-            <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة</h2>
+                <!-- مكان ظهور حالة الشقة للعميل -->
+                <div id="apt-modal-status-zone"></div>
+            </div>
             <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
             
             <div id="apt-modal-gallery" class="gallery"></div>
             
             <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
+                <!-- مكان ظهور موعد التسليم لو تحت الإنشاء -->
+                <div id="apt-modal-delivery-zone" style="margin-bottom: 12px; display:none; background:#fff7ed; padding:10px; border-right:4px solid #ea580c; border-radius:4px;"></div>
+                
                 <p style="margin-bottom: 8px; font-size: 16px;">👁️ <strong>الإطلالة الكلية:</strong> <span id="apt-modal-view"></span></p>
-                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>التقسيم الداخلي للغرف:</strong> <span id="apt-modal-rooms"></span></p>
+                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>الالتقسيم الداخلي للغرف:</strong> <span id="apt-modal-rooms"></span></p>
                 <div style="margin-top: 15px;">
                     <span id="apt-modal-price" class="price-badge"></span>
                 </div>
@@ -147,7 +153,7 @@
         let uploadedAptImagesMap = {};
         let currentSelectedBuilding = null;
 
-        // الداتا الحقيقية مرتبة ومنظمة
+        // الداتا الافتراضية متعدلة بالحالة الجديدة
         let allBuildings = [
             {
                 id: 1,
@@ -157,9 +163,8 @@
                 types: ["إداري", "سكني", "تجاري"],
                 images: [],
                 apartments: [
-                    { floor: "الدور الثاني", size: "125 متر", view: "خلفي على لاند سكيب", rooms: "3 غرف + ريسبشن كبير + حمام ومطبخ", price: "2,000,000 ج.م", payment: "مقدم 10% والباقي قسط على 50 شهر", images: [] },
-                    { floor: "الدور الثاني", size: "130 متر", view: "خلفي مميز", rooms: "3 غرف + 2 حمام + ريسبشن قطعتين", price: "2,150,000 ج.م", payment: "كاش بخصم أو قسط على 50 شهر", images: [] },
-                    { floor: "الدور الثالث", size: "150 متر", view: "واجهة أمامية", rooms: "3 غرف + 2 حمام + ريسبشن 3 قطع", price: "2,600,000 ج.م", payment: "تسهيلات في السداد", images: [] }
+                    { floor: "الدور الثاني", size: "125 متر", view: "خلفي على لاند سكيب", rooms: "3 غرف + ريسبشن كبير", price: "2,000,000 ج.م", payment: "مقدم 10% وقسط على 50 شهر", status: "مبنية", deliveryDate: "", images: [] },
+                    { floor: "الدور الثاني", size: "130 متر", view: "خلفي مميز", rooms: "3 غرف + 2 حمام", price: "2,150,000 ج.م", payment: "قسط على 50 شهر", status: "تحت_الإنشاء", deliveryDate: "ديسمبر 2026", images: [] }
                 ]
             }
         ];
@@ -173,55 +178,44 @@
             });
         }
 
-        // فتح نافذة العمارة الكبيرة (الخطوة 1)
         function openBuildingModal(b) {
             currentSelectedBuilding = b;
             document.getElementById('modal-b-name').innerText = b.name;
             document.getElementById('modal-b-loc').innerText = "📍 " + b.locationDesc;
             
-            // الصور الرئيسية
             const imgContainer = document.getElementById('modal-building-img-container');
-            if(b.images && b.images.length > 0) {
-                imgContainer.innerHTML = `<img src="${b.images[0]}" class="main-view-img"/>`;
-            } else {
-                imgContainer.innerHTML = `<div class="main-view-img" style="background:#cbd5e1; display:flex; align-items:center; justify-content:center; color:#64748b;">📸 لا توجد صور واجهة مرفوعة حالياً</div>`;
-            }
+            if(b.images && b.images.length > 0) { imgContainer.innerHTML = `<img src="${b.images[0]}" class="main-view-img"/>`; } 
+            else { imgContainer.innerHTML = `<div class="main-view-img" style="background:#cbd5e1; display:flex; align-items:center; justify-content:center; color:#64748b;">📸 لا توجد صور واجهة مرفوعة حالياً</div>`; }
 
-            // التاجات
             const tagsDiv = document.getElementById('modal-b-tags');
             tagsDiv.innerHTML = '';
             b.types.forEach(t => tagsDiv.innerHTML += `<span class="tag">${t}</span>`);
 
-            // تجميع الأدوار بدون تكرار
             const floorsList = document.getElementById('modal-floors-list');
             floorsList.innerHTML = '';
             const uniqueFloors = [...new Set(b.apartments.map(a => a.floor))];
-            
             uniqueFloors.forEach(floorName => {
                 floorsList.innerHTML += `<button class="floor-btn" onclick="selectFloor('${floorName}')">🏢 ${floorName}</button>`;
             });
 
-            // إرجاع الأنيميشن للوضع الأول (الأدوار ظاهر والمساحات مخفي)
             document.getElementById('floors-section').classList.remove('fade-out');
             document.getElementById('sizes-section').classList.add('fade-out');
-
             document.getElementById('building-modal').classList.add('active');
         }
 
-        // اختيار الدور والانتقال بنعومة للمساحات (الخطوة 2)
         function selectFloor(floorName) {
             document.getElementById('selected-floor-title').innerText = `المساحات المتاحة في (${floorName}):`;
             const sizesList = document.getElementById('modal-sizes-list');
             sizesList.innerHTML = '';
 
-            // تصفية الشقق اللي في الدور ده بس
             const filteredApts = currentSelectedBuilding.apartments.filter(a => a.floor === floorName);
-            
             filteredApts.forEach(apt => {
+                // إضافة كلمة توضيحية سريعة جمب المساحة في الكارت
+                let statusText = apt.status === 'مبنية' ? '🔑 جاهزة' : '🏗️ قيد الإنشاء';
                 sizesList.innerHTML += `
                     <div class="size-card" onclick="openApartmentModal(${JSON.stringify(apt).replace(/"/g, '&quot;')})">
                         <div>
-                            <strong style="font-size:18px; color:#1e3a8a;">📐 مساحة ${apt.size}</strong>
+                            <strong style="font-size:18px; color:#1e3a8a;">📐 مساحة ${apt.size} <span style="font-size:12px; font-weight:normal; color:#64748b;">(${statusText})</span></strong>
                             <p style="font-size:13px; color:#64748b; margin-top:4px;">👁️ الإطلالة: ${apt.view}</p>
                         </div>
                         <span class="price-badge">${apt.price}</span>
@@ -229,7 +223,6 @@
                 `;
             });
 
-            // عمل أنيميشن الاختفاء والظهور
             document.getElementById('floors-section').classList.add('fade-out');
             const sizesSection = document.getElementById('sizes-section');
             sizesSection.classList.remove('fade-out');
@@ -243,7 +236,6 @@
             floorsSection.classList.add('fade-in');
         }
 
-        // فتح نافذة الشقة الكبيرة المنفصلة (الخطوة 3)
         function openApartmentModal(apt) {
             document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}`;
             document.getElementById('apt-modal-view').innerText = apt.view;
@@ -251,12 +243,23 @@
             document.getElementById('apt-modal-price').innerText = `💰 السعر الإجمالي: ${apt.price}`;
             document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد: ${apt.payment}`;
 
+            // 1. عرض تاغ الحالة للعميل
+            const statusZone = document.getElementById('apt-modal-status-zone');
+            if(apt.status === 'مبنية') {
+                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام الفوري 🔑</span>`;
+                document.getElementById('apt-modal-delivery-zone').style.display = 'none';
+            } else {
+                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span>`;
+                // 2. إظهار موعد التسليم
+                const deliveryZone = document.getElementById('apt-modal-delivery-zone');
+                deliveryZone.innerHTML = `📅 <strong>موعد التسليم المتوقع:</strong> ${apt.deliveryDate || 'غير محدد بعد'}`;
+                deliveryZone.style.display = 'block';
+            }
+
             const gallery = document.getElementById('apt-modal-gallery');
             gallery.innerHTML = '';
             if(apt.images && apt.images.length > 0) {
-                apt.images.forEach(img => {
-                    gallery.innerHTML += `<img src="${img}" onclick="window.open('${img}')"/>`;
-                });
+                apt.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.open('${img}')"/>`; });
             } else {
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">📸 لم يتم رفع صور داخلية للشقة بعد.</p>';
             }
@@ -268,7 +271,6 @@
         function closeApartmentModal() { document.getElementById('apartment-modal').classList.remove('active'); }
         function closeModal(modal, e) { if(e.target === modal) modal.classList.remove('active'); }
 
-        // وضع الأدمن (إضافة العماير) - كما هو للحفاظ على البيانات القديمة
         function toggleAdminMode() {
             adminMode = !adminMode;
             const btn = document.getElementById('admin-toggle-btn');
@@ -300,7 +302,7 @@
                 <div class="nested-box" id="${floorId}">
                     <label>الدور:</label><input type="text" class="floor-name-input" placeholder="الدور الثاني">
                     <div class="apts-box"></div>
-                    <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7;" onclick="addAptForm('${floorId}')">➕ شقة في هذا الدور</button>
+                    <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
             addAptForm(floorId);
@@ -312,15 +314,37 @@
             const box = document.getElementById(floorId).querySelector('.apts-box');
             const aptUid = `uid-${aptCount}`;
             const html = `
-                <div class="apt-edit-box" id="${aptUid}" style="border:1px solid #cbd5e1; padding:8px; margin:5px 0;">
-                    <input type="text" class="apt-size" placeholder="المساحة: 125 متر">
+                <div class="apt-edit-box" id="${aptUid}">
+                    <label style="color:#0284c7; font-size:12px;">🏠 شقة جديدة:</label>
+                    <input type="text" class="apt-size" placeholder="المساحة: 125 متر" style="margin-top:4px;">
                     <input type="text" class="apt-price" placeholder="السعر: 2,000,000 ج.م" style="margin-top:4px;">
+                    
+                    <!-- الاختيار الجديد: حالة الشقة -->
+                    <select class="apt-status" onchange="toggleDeliveryInput(this, '${aptUid}')" style="margin-top:4px;">
+                        <option value="مبنية">مبنية (جاهزة للاستلام فوري)</option>
+                        <option value="تحت_الإنشاء">تحت الإنشاء</option>
+                    </select>
+                    
+                    <!-- خانة تاريخ التسليم المخفية تلقائياً -->
+                    <input type="text" class="apt-delivery" placeholder="موعد التسليم: مثال (ديسمبر 2026)" style="margin-top:4px; display:none;" id="delivery-input-${aptUid}">
+                    
                     <input type="text" class="apt-view" placeholder="الإطلالة: خلفي" style="margin-top:4px;">
                     <input type="text" class="apt-rooms" placeholder="التقسيم: 3 غرف" style="margin-top:4px;">
                     <input type="text" class="apt-payment" placeholder="السداد: قسط" style="margin-top:4px;">
-                    <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px;">
+                    <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px; width:100%;">
                 </div>`;
             box.insertAdjacentHTML('beforeend', html);
+        }
+
+        // إظهار وإخفاء خانة موعد التسليم ذكياً حسب الاختيار
+        function toggleDeliveryInput(selectElement, aptUid) {
+            const deliveryInput = document.getElementById(`delivery-input-${aptUid}`);
+            if(selectElement.value === 'تحت_الإنشاء') {
+                deliveryInput.style.display = 'block';
+            } else {
+                deliveryInput.style.display = 'none';
+                deliveryInput.value = ''; // تصفير القيمة لو رجع اختار مبنية
+            }
         }
 
         function handleBuildingImages(input) {
@@ -358,6 +382,8 @@
                         floor: fName,
                         size: ab.querySelector('.apt-size').value || "غير محدد",
                         price: ab.querySelector('.apt-price').value || "غير محدد",
+                        status: ab.querySelector('.apt-status').value,
+                        deliveryDate: ab.querySelector('.apt-delivery').value || "",
                         view: ab.querySelector('.apt-view').value || "غير محدد",
                         rooms: ab.querySelector('.apt-rooms').value || "غير محدد",
                         payment: ab.querySelector('.apt-payment').value || "غير محدد",
