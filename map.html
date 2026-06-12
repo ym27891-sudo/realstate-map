@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة الخرائط العقارية | عقاري اليوم</title>
+    <title>المعاينة التفاعلية | عقاري اليوم</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
         
-        #top-bar { background: #0f172a; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
+        /* الشريط مخفي تماماً للعملاء */
+        #top-bar { display: none; background: #0f172a; padding: 15px 20px; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
         .top-btns-group { display: flex; gap: 10px; }
         
-        /* الزر مخفي افتراضياً للحماية */
         #admin-toggle-btn { display: none; }
 
         .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s ease; }
@@ -23,8 +23,11 @@
         .btn-danger:hover { background: #dc2626; }
         .btn-admin-active { background: #ef4444 !important; }
 
-        #main-container { display: flex; flex: 1; height: calc(100vh - 60px); width: 100%; position: relative; }
+        #main-container { display: flex; flex: 1; height: 100vh; width: 100%; position: relative; }
         #map { flex: 1; height: 100%; z-index: 1; }
+        
+        /* كارت السيلز العائم الجديد (يظهر للعميل) */
+        #floating-sales-badge { position: absolute; top: 15px; right: 15px; background: rgba(255,255,255,0.95); padding: 10px 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 1000; display: none; font-weight: bold; border-right: 4px solid #3b82f6; backdrop-filter: blur(5px); }
         
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
@@ -76,16 +79,13 @@
         .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
         .btn-call { background: #2563eb; }
         .btn-whatsapp { background: #16a34a; }
-        
-        #sales-badge-info { font-size: 13px; font-weight: bold; padding: 4px 10px; border-radius: 6px; background: #1e293b; color: #a7f3d0; margin-left: 10px; display: none; }
     </style>
 </head>
 <body>
 
     <div id="top-bar">
         <div style="display: flex; align-items: center;">
-            <h2>منظومة الخرائط العقارية الذكية 🏢</h2>
-            <div id="sales-badge-info"></div>
+            <h2>لوحة تحكم الأدمن للخرائط 🔧</h2>
         </div>
         <div class="top-btns-group">
             <button id="admin-toggle-btn" class="btn" onclick="window.toggleAdminMode()">🔧 إدارة العمارات والمواقع</button>
@@ -93,6 +93,12 @@
     </div>
 
     <div id="main-container">
+        <!-- الكارت العائم اللي هيظهر للعميل باسم السيلز -->
+        <div id="floating-sales-badge">
+            <div style="font-size: 11px; color: #64748b;">المستشار العقاري:</div>
+            <div id="floating-sales-name" style="font-size: 15px; color: #1e3a8a;"></div>
+        </div>
+
         <div id="map"></div>
 
         <div id="admin-sidebar">
@@ -163,7 +169,7 @@
             <div id="modal-b-desc-box" class="info-box" style="margin-top:15px; font-size:14px; color:#334155;"></div>
             
             <div id="floors-section" class="animated-section" style="margin-top:20px;">
-                <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة (قراءة مباشرة):</h3>
+                <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
                 <div id="modal-floors-list"></div>
             </div>
 
@@ -220,7 +226,6 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-    <!-- تم إضافة مكتبة الـ Auth للتحقق من هوية الأدمن وحماية الخريطة -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -237,13 +242,15 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // نظام الحماية: الزرار هيظهر بس لو كنت مسجل دخولك كأدمن من الانفنتوري
+        // نظام الحماية: إظهار لوحة تحكم الخريطة للأدمن فقط
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.uid).get();
                 const role = (user.email.toLowerCase() === "ym27891@gmail.com") ? 'admin' : (userDoc.exists ? userDoc.data().role : 'sales');
                 if (role === 'admin') {
+                    document.getElementById('top-bar').style.display = 'flex';
                     document.getElementById('admin-toggle-btn').style.display = 'inline-block';
+                    document.getElementById('main-container').style.height = 'calc(100vh - 60px)';
                 }
             }
         });
@@ -270,7 +277,6 @@
         let currentSizeTemplates = {}; 
         let currentAptOverrides = {};  
 
-        // دالة ضغط الصور لتجنب تخطي مساحة Firebase
         window.compressImage = (file, maxSize = 800) => {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -293,14 +299,12 @@
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
-                        // تحويل الصورة لـ JPEG مع تقليل الجودة لـ 60% لضمان أقصى ضغط
                         resolve(canvas.toDataURL('image/jpeg', 0.6)); 
                     };
                 };
             });
         };
 
-        // سحب البيانات من الفايربيز
         db.collection('properties').onSnapshot((snap) => {
             inventoryProperties = snap.docs.map(d => ({id: d.id, ...d.data()}));
             invDataLoaded = true;
@@ -326,7 +330,6 @@
             map.eachLayer(function (layer) { if (layer instanceof L.Marker && layer !== tempMarker) map.removeLayer(layer); });
             
             mapBuildings.forEach((mapB) => {
-                // الفلترة الذكية عشان نطلع المتاح بس
                 const bApts = inventoryProperties.filter(p => (p.area || '').trim() === (mapB.name || '').trim() && p.status === 'متاح');
                 
                 const marker = L.marker(mapB.coords).addTo(map);
@@ -385,7 +388,6 @@
             document.getElementById('admin-sidebar').style.display = 'block';
         });
 
-        // الميزة العبقرية: جلب الأدوار والمساحات فوراً من الانفنتوري
         window.fetchBuildingFromInventory = () => {
             const bName = document.getElementById('form-b-name').value.trim();
             if(!bName) return alert("اكتب اسم العمارة الأول!");
@@ -566,8 +568,6 @@
 
         window.toggleBuildingDeliveryInput = (val) => { document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none'; };
         
-        // ---------------- واجهة العميل للخرائط ----------------
-
         window.openBuildingModal = (mapB, bApts) => {
             if(bApts.length === 0) {
                 alert("عفواً، لا توجد شقق متاحة حالياً في هذه العمارة.");
@@ -696,9 +696,10 @@
                 currentSalesData.phone = urlParams.get('sales_phone') || "01000000000";
                 currentSalesData.whatsapp = urlParams.get('sales_ws') || "201000000000";
                 
-                const badge = document.getElementById('sales-badge-info');
-                badge.innerText = `👤 المستشار العقاري: ${currentSalesData.name}`;
-                badge.style.display = 'inline-block';
+                // إظهار كارت السيلز العائم للعميل على الخريطة
+                const floatingBadge = document.getElementById('floating-sales-badge');
+                document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
+                floatingBadge.style.display = 'block';
             }
 
             if(urlParams.has('area')) {
