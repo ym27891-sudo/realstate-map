@@ -2,473 +2,1307 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة إدارة الخرائط العقارية الاحترافية</title>
+    <title>Inventory عقاري اليوم</title>
+    <link class="program-favicon" rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/home.png">
+    <link class="apple-touch-icon" href="https://img.icons8.com/fluency/512/home.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
+        :root { --main-blue: #1e3a8a; }
+        .edit-animate { transition: all 0.2s ease; cursor: pointer; }
+        .edit-animate:hover { background-color: #f8fafc; transform: scale(1.01); }
+        .tab-btn { white-space: nowrap; transition: all 0.3s; cursor: pointer; user-select: none; border: 1px solid #e2e8f0; padding: 8px 20px; border-radius: 9999px; background: white; color: #64748b; font-weight: 900; }
+        .tab-btn.active { background-color: var(--main-blue) !important; color: white !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .tab-dragging { opacity: 0.5; background: #cbd5e1 !important; border: 2px dashed var(--main-blue) !important; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .bg-navy { background-color: #1e3a8a; }
+        .text-navy { color: #1e3a8a; }
         
-        #top-bar { background: #0f172a; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 10; }
-        .top-btns-group { display: flex; gap: 10px; }
-        .btn { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: all 0.3s ease; }
-        .btn:hover { background: #2563eb; transform: translateY(-1px); }
-        .btn-success { background: #10b981; }
-        .btn-success:hover { background: #059669; }
-        .btn-danger { background: #ef4444; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-admin-active { background: #ef4444 !important; }
-        .btn-sales { background: #8b5cf6; }
-        .btn-sales:hover { background: #7c3aed; }
+        .eng-num {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+            font-weight: 800 !important;
+            direction: ltr !important;
+            text-align: center !important;
+        }
 
-        #main-container { display: flex; flex: 1; height: calc(100vh - 60px); width: 100%; position: relative; }
-        #map { flex: 1; height: 100%; z-index: 1; }
-        
-        /* النوافذ المنبثقة */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+        .modal-animate {
+            animation: fadeInZoom 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes fadeInZoom {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #adminReportModal, #adminReportModal * { visibility: visible; }
+            #adminReportModal { position: absolute; left: 0; top: 0; width: 100%; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
+            .no-print { display: none !important; }
+        }
+
+        /* ستايلات الخريطة والنوافذ العقارية المدمجة */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; padding: 10px; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-content { background: white; width: 90%; max-width: 700px; max-height: 85vh; border-radius: 20px; padding: 30px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); transform: scale(0.9) translateY(20px); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; }
-        .modal-overlay.active .modal-content { transform: scale(1) translateY(0); }
-        .modal-close { position: absolute; top: 20px; left: 20px; font-size: 24px; cursor: pointer; color: #94a3b8; }
-
-        /* نافذة عرض الصور الكبيرة بدقة عالية (Lightbox) */
-        #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
-        #lightbox-img { max-width: 90%; max-height: 85vh; border-radius: 12px; box-shadow: 0 0 30px rgba(255,255,255,0.2); }
-        .lightbox-close { position: absolute; top: 20px; left: 20px; color: white; font-size: 35px; cursor: pointer; }
-
-        .animated-section { transition: all 0.3s ease; opacity: 1; transform: translateX(0); }
-        .animated-section.fade-out { opacity: 0; transform: translateX(50px); display: none; }
-        .animated-section.fade-in { animation: slideIn 0.4s forwards; }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(-50px); } to { opacity: 1; transform: translateX(0); } }
-
-        .floor-btn { background: #f1f5f9; color: #1e293b; border: 2px solid #e2e8f0; padding: 15px; border-radius: 12px; cursor: pointer; text-align: center; font-size: 16px; font-weight: bold; width: 100%; margin-bottom: 10px; }
-        .floor-btn:hover { background: #3b82f6; color: white; border-color: #3b82f6; }
-
-        .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .size-card:hover { border-color: #10b981; background: #f0fdf4; }
-
-        .tag { display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; margin-left: 6px; }
-        .status-ready { display: inline-block; background: #dcfce7; color: #166534; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
-        .status-construction { display: inline-block; background: #ffedd5; color: #9a3412; padding: 6px 14px; border-radius: 50px; font-size: 13px; font-weight: bold; }
-        
+        .modal-content-map { background: white; width: 100%; max-width: 680px; max-height: 85vh; border-radius: 20px; padding: 25px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); position: relative; }
+        .gallery { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
+        .gallery img { width: 110px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid #e2e8f0; }
+        .btn-premium-viewing { width: 100%; padding: 14px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-premium-viewing:hover { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); transform: translateY(-1px); }
         .price-badge { background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 16px; }
-        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-top: 8px; display: inline-block; }
-
-        .gallery { display: flex; gap: 10px; overflow-x: auto; padding: 10px 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
-        .gallery img { width: 130px; height: 95px; object-fit: cover; border-radius: 10px; cursor: pointer; border: 2px solid #e2e8f0; transition: transform 0.2s; }
-        .gallery img:hover { transform: scale(1.05); border-color: #3b82f6; }
-        
-        #admin-sidebar { width: 420px; background: white; box-shadow: -4px 0 15px rgba(0,0,0,0.1); padding: 25px; overflow-y: auto; z-index: 5; display: none; }
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
-        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
-        .nested-box { border: 2px dashed #3b82f6; padding: 15px; margin-top: 15px; background: #f8fafc; border-radius: 10px; position: relative; }
-        .apt-edit-box { background: white; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; position: relative; }
-        
-        .image-preview { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-        .image-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; }
-        
-        .delete-icon-btn { background: #fee2e2; color: #ef4444; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: bold; }
-        .delete-icon-btn:hover { background: #ef4444; color: white; }
-        
-        .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
-        .action-btn { flex: 1; text-align: center; padding: 12px; border-radius: 8px; text-decoration: none; font-weight: bold; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 15px; }
-        .btn-call { background: #2563eb; }
-        .btn-whatsapp { background: #16a34a; }
-        
-        /* بار السيلز العلوي المخصص لإصدار اللينكات */
-        #sales-badge-info { font-size: 13px; font-weight: bold; padding: 4px 10px; border-radius: 6px; background: #1e293b; color: #a7f3d0; margin-left: 10px; display: none; }
+        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 13px; margin-top: 6px; display: inline-block; }
+        .status-ready { display: inline-block; background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: bold; }
+        .status-construction { display: inline-block; background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: bold; }
+        #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
+        #lightbox-img { max-width: 95%; max-height: 85vh; border-radius: 12px; }
+        .lightbox-close { position: absolute; top: 20px; left: 20px; color: white; font-size: 35px; cursor: pointer; }
+        .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .size-card:hover { border-color: #10b981; background: #f0fdf4; }
     </style>
-</head>
-<body>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, deleteDoc, getDoc, setDoc, query, orderBy, limit, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, set, onValue, onDisconnect, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    <div id="top-bar">
-        <div style="display: flex; align-items: center;">
-            <h2>منظومة إدارة الخرائط العقارية الذكية 🏢</h2>
-            <div id="sales-badge-info"></div>
-        </div>
-        <div class="top-btns-group">
-            <button id="sales-link-btn" class="btn btn-sales" onclick="openSalesModal()">🔑 رابط السيلز المخصص</button>
-            <button id="admin-toggle-btn" class="btn" onclick="toggleAdminMode()">🔧 وضع التعديل وإضافة العماير</button>
-        </div>
-    </div>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCN5AKTo3Ojfh3Dx78sSa3nglhNXDpCx_8",
+            authDomain: "hadayek-realestate.firebaseapp.com",
+            projectId: "hadayek-realestate",
+            storageBucket: "hadayek-realestate.firebasestorage.app",
+            messagingSenderId: "889853758510",
+            appId: "1:889853758510:web:8144e5362f788363a0e3bf",
+            databaseURL: "https://hadayek-realestate-default-rtdb.firebaseio.com/"
+        };
 
-    <div id="main-container">
-        <div id="map"></div>
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const rtdb = getDatabase(app);
 
-        <!-- لوحة تحكم الأدمن الجانبية المتكاملة -->
-        <div id="admin-sidebar">
-            <span style="float:left; cursor:pointer; font-weight:bold; font-size:18px;" onclick="closeAdminSidebar()">✕</span>
-            <h3 id="admin-sidebar-title" style="margin-bottom:15px; color:#1e3a8a;">➕ إضافة عمارة جديدة</h3>
-            
-            <div class="form-group"><label>اسم أو رقم العمارة:</label><input type="text" id="form-b-name" placeholder="مثال: عمارة 156أ"></div>
-            <div class="form-group"><label>الوصف والموقع:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: شارع 5 أ - ثالث نمرة من البوابة الأولى"></textarea></div>
-            
-            <div class="form-group">
-                <label>🏗️ حالة إنشاء العمارة ككل:</label>
-                <select id="form-b-status" onchange="toggleBuildingDeliveryInput(this.value)">
-                    <option value="مبنية">مبنية (جاهزة للاستلام الفوري)</option>
-                    <option value="تحت_الإنشاء">تحت الإنشاء</option>
-                </select>
-            </div>
-            <div class="form-group" id="form-b-delivery-group" style="display:none;">
-                <label>📅 موعد تسليم العمارة المتوقع:</label>
-                <input type="text" id="form-b-delivery" placeholder="مثال: 6 شهور">
-            </div>
+        let currentUserRole = 'sales', dataStore = [], resaleStore = [], teamsStore = [], activeTab = 'الكل';
+        let showCommercialOnly = false, showOnlyAvailable = false, buildingOrder = [], onlineUsers = {}, unreadCount = 0, firstLoad = true;
+        let searchMode = 'size'; 
+        let selectedMonthsForReport = []; 
+        let selectedArchiveYear = "current"; 
+        let currentActiveReportTeamId = ""; 
+        let loggedInUserDocId = "";
+        let currentEditingPropId = "";
 
-            <div class="form-group">
-                <label>📸 صور واجهة ومداخل العمارة:</label>
-                <input type="file" id="form-b-images" multiple accept="image/*" onchange="handleBuildingImages(this)">
-                <div id="b-images-preview" class="image-preview"></div>
-            </div>
-            
-            <hr style="margin: 20px 0; border-top: 2px solid #e2e8f0;">
-            <h4 style="color:#0f172a;">🏢 الطوابق والشقق المتاحة:</h4>
-            <div id="form-floors-container"></div>
-            <button class="btn" style="background:#10b981; margin-top:10px; width:100%" onclick="addFloorForm()">➕ إضافة دور جديد</button>
-            
-            <button class="btn btn-success" style="width:100%; margin-top:25px; padding:14px; font-size:16px;" onclick="saveBuildingFromSidebar()">💾 حفظ البيانات وتحديث الخريطة</button>
-            <button class="btn btn-danger" id="sidebar-delete-btn" style="width:100%; margin-top:10px; padding:10px; display:none;">❌ حذف هذه العمارة تماماً</button>
-        </div>
-    </div>
+        const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
 
-    <!-- 🌟 النافذة الأولى (عرض العمارة والأدوار للعميل) -->
-    <div id="building-modal" class="modal-overlay" onclick="closeModal(this, event)">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeBuildingModal()">✕</span>
-            
-            <h3 style="font-size:14px; color:#64748b; margin-bottom:5px;">📸 ألبوم صور العمارة والمدخل (اضغط على الصورة لتكبيرها بوضوح):</h3>
-            <div id="modal-b-gallery" class="gallery"></div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:start; margin-top:10px;">
-                <div>
-                    <h2 id="modal-b-name" style="font-size: 28px;">اسم العمارة</h2>
-                    <p id="modal-b-loc" style="color: #64748b; font-size: 15px; margin-top:4px;"></p>
-                </div>
-                <div id="modal-b-status-zone" style="text-align:left;"></div>
-            </div>
-            
-            <div id="modal-b-desc-box" class="info-box" style="margin-top:15px;"></div>
-            
-            <div id="floors-section" class="animated-section" style="margin-top:20px;">
-                <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
-                <div id="modal-floors-list"></div>
-            </div>
+        function cleanToEngNum(str) {
+            if(!str) return '';
+            return str.toString().replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632)
+                                 .replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776)
+                                 .replace(/[^0-9.]/g, '');
+        }
 
-            <div id="sizes-section" class="animated-section fade-out" style="margin-top:20px;">
-                <button class="btn" style="background:#64748b; margin-bottom:15px; padding:6px 12px;" onclick="goBackToFloors()">⬅️ العودة للأدوار</button>
-                <h3 id="selected-floor-title" style="margin-bottom: 15px; font-size: 18px; color: #475569;">المساحات المتاحة:</h3>
-                <div id="modal-sizes-list"></div>
-            </div>
-        </div>
-    </div>
+        function formatMoney(num) {
+            if(!num && num !== 0) return '';
+            return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
 
-    <!-- 🌟 النافذة الثانية (كارت الشقة الفخم وتفاصيل المعاينة) -->
-    <div id="apartment-modal" class="modal-overlay" onclick="closeModal(this, event)">
-        <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #3b82f6;">
-            <span class="modal-close" onclick="closeApartmentModal()">✕</span>
-            <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة الفاخرة</h2>
-            <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
-            
-            <h3 style="font-size:13px; color:#64748b; margin-bottom:4px;">📸 صور الشقة من الداخل (اضغط لتكبير الصورة):</h3>
-            <div id="apt-modal-gallery" class="gallery"></div>
-            
-            <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
-                <p style="margin-bottom: 8px; font-size: 16px;">👁️ <strong>الإطلالة:</strong> <span id="apt-modal-view"></span></p>
-                <p style="margin-bottom: 8px; font-size: 16px;">🛏️ <strong>التقسيم وغرف النوم:</strong> <span id="apt-modal-rooms"></span></p>
-                <div style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center;">
-                    <span id="apt-modal-price" class="price-badge"></span>
-                </div>
-                <span id="apt-modal-payment" class="payment-badge"></span>
+        function unformatMoney(str) {
+            if(!str) return 0;
+            return parseFloat(str.toString().replace(/,/g, '')) || 0;
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                loggedInUserDocId = user.uid;
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                currentUserRole = (user.email.toLowerCase() === "ym27891@gmail.com") ? 'admin' : (userDoc.exists() ? userDoc.data().role : 'sales');
+                if(!userDoc.exists()) await setDoc(doc(db, 'users', user.uid), { email: user.email, role: 'sales', name: '', teamId: '' });
                 
-                <div id="calculator-zone" style="margin-top:15px; padding-top:15px; border-top:1px dashed #cbd5e1; font-size:13px; color:#475569;">
-                    <button class="btn" style="background:#0f172a; padding:6px 12px; width:100%; font-size:13px;" onclick="calculateFinancing()">📊 احسب قسط الشقة والمقدم فوراً</button>
-                    <div id="calc-results" style="margin-top:10px; display:none; background:white; padding:10px; border-radius:6px; border:1px solid #e2e8f0;"></div>
-                </div>
-            </div>
-            
-            <!-- أزرار الاتصال الذكية اللي بتتحول على السيلز تلقائياً -->
-            <div class="action-buttons">
-                <a href="tel:01000000000" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
-                <a href="https://wa.me/201000000000" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
-            </div>
-        </div>
-    </div>
+                if(userDoc.exists() && userDoc.data().name) {
+                    window.currentAgentName = userDoc.data().name;
+                } else {
+                    window.currentAgentName = "";
+                    document.getElementById('nameSetupModal').style.display = 'flex';
+                }
 
-    <!-- 🌟 نافذة إعداد وحفظ روابط السيلز المخصصة -->
-    <div id="sales-modal" class="modal-overlay" onclick="closeModal(this, event)">
-        <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
-            <span class="modal-close" onclick="closeSalesModal()">✕</span>
-            <h2>🔑 إنشاء رابط السيلز لحفظ العمولات</h2>
-            <p style="font-size:13px; color:#64748b; margin-top:5px; margin-bottom:15px;">اكتب بياناتك واضغط إصدار اللينك، وابعته للعميل عشان يجيلك العميل لوحده على رقمك.</p>
-            
-            <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: أحمد محمد"></div>
-            <div class="form-group"><label>رقم موبايل الاتصال مباشر:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678"></div>
-            <div class="form-group"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678"></div>
-            
-            <button class="btn btn-success" style="width:100%; padding:12px; margin-top:10px;" onclick="generateSalesLink()">🔗 إصدار ونسخ لينك السيلز الخاص بي</button>
-            <div id="generated-link-box" style="margin-top:15px; display:none; background:#f1f5f9; padding:10px; border-radius:6px; word-break:break-all; font-size:12px; border:1px solid #cbd5e1;"></div>
-        </div>
-    </div>
-
-    <!-- 🌟 نافذة اللايت بوكس السينمائية لعرض الصور بوضوح فائق وممتاز -->
-    <div id="lightbox-overlay" onclick="closeLightbox()">
-        <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
-        <img id="lightbox-img" src="" alt="معاينة واضحة بالكامل">
-    </div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const map = L.map('map').setView([29.9730, 31.1150], 16);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        let adminMode = false;
-        let tempMarker = null;
-        let currentTempCoords = null;
-        let isEditingExisting = false;
-        let editingBuildingId = null;
-
-        let currentSidebarBuildingImages = [];
-        let currentSidebarAptImagesMap = {}; 
-
-        // بيانات الشركة والافتراضية للمنظومة العقارية بالكامل
-        let allBuildings = [
-            {
-                id: 1,
-                name: "أ56",
-                coords: [29.9740, 31.1160],
-                locationDesc: "شارع 5 أ",
-                buildingStatus: "تحت_الإنشاء",
-                deliveryDate: "6 شهور",
-                images: [],
-                apartments: [
-                    { id: "apt_1", floor: "الدور الثاني", size: "125", view: "خلفيه", rooms: "3 غرف + 2 حمام", price: "20,000,000", payment: "18 شهر" }
-                ]
-            }
-        ];
-
-        // 🔗 وظيفة فحص روابط السيلز المخصصة في الـ URL وقراءة هويته
-        let currentSalesData = { name: "", phone: "01000000000", whatsapp: "201000000000" };
-        function checkSalesQuery() {
-            const urlParams = new URLSearchParams(window.location.search);
-            if(urlParams.has('sales_name')) {
-                currentSalesData.name = urlParams.get('sales_name');
-                currentSalesData.phone = urlParams.get('sales_phone') || "01000000000";
-                currentSalesData.whatsapp = urlParams.get('sales_ws') || "201000000000";
-                
-                // إظهار شارة السيلز النشط فوق خالص للعميل
-                const badge = document.getElementById('sales-badge-info');
-                badge.innerText = `👤 المستشار العقاري: ${currentSalesData.name}`;
-                badge.style.display = 'inline-block';
-            }
-        }
-
-        // تشغيل نظام التكبير التلقائي للصور لعرض مجهود الصور بوضوح (Lightbox)
-        function viewImageInLightbox(src) {
-            const lightbox = document.getElementById('lightbox-overlay');
-            const lightboxImg = document.getElementById('lightbox-img');
-            lightboxImg.src = src;
-            lightbox.style.display = 'flex';
-        }
-        function closeLightbox() { document.getElementById('lightbox-overlay').style.display = 'none'; }
-
-        function renderMarkers() {
-            map.eachLayer(function (layer) { if (layer instanceof L.Marker && layer !== tempMarker) map.removeLayer(layer); });
-            allBuildings.forEach((b) => {
-                const marker = L.marker(b.coords).addTo(map);
-                marker.bindTooltip(b.name, { permanent: true, direction: 'top' });
-                marker.on('click', function() { 
-                    if(!adminMode) openBuildingModal(b); 
-                    else openAdminEditSidebar(b);
-                });
-            });
-        }
-
-        function toggleBuildingDeliveryInput(val) {
-            document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none';
-        }
-
-        function toggleAdminMode() {
-            adminMode = !adminMode;
-            const btn = document.getElementById('admin-toggle-btn');
-            if(adminMode) {
-                btn.innerText = "🛑 إلغاء وضع التعديل";
-                btn.classList.add('btn-admin-active');
-                alert("وضع التحكم شغال:\n- لإضافة عمارة: اضغط على أي مكان فارغ في الخريطة.\n- لتعديل عمارة أو حذفها: اضغط على دبوس العمارة مباشرة.");
+                set(ref(rtdb, 'status/' + user.uid), { email: user.email, online: true });
+                onDisconnect(ref(rtdb, 'status/' + user.uid)).remove();
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('appSection').classList.remove('hidden');
+                document.getElementById('adminArea').classList.toggle('hidden', currentUserRole !== 'admin');
+                if(document.getElementById('adminResaleAdd')) {
+                    document.getElementById('adminResaleAdd').classList.toggle('hidden', currentUserRole !== 'admin');
+                }
+                document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
+                document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
+                initAppListeners();
+                // تشغيل الخريطة فور نجاح تسجيل الدخول
+                setTimeout(() => { window.initMapSystem(); }, 500);
             } else {
-                btn.innerText = "🔧 وضع التعديل وإضافة العماير";
-                btn.classList.remove('btn-admin-active');
-                closeAdminSidebar();
+                document.getElementById('loginSection').classList.remove('hidden');
+                document.getElementById('appSection').classList.add('hidden');
             }
-        }
-
-        map.on('click', function(e) {
-            if (!adminMode) return;
-            isEditingExisting = false;
-            editingBuildingId = null;
-            currentTempCoords = [e.latlng.lat, e.latlng.lng];
-            if (tempMarker) map.removeLayer(tempMarker);
-            tempMarker = L.marker(currentTempCoords).addTo(map);
-
-            document.getElementById('admin-sidebar-title').innerText = "➕ إضافة عمارة جديدة";
-            document.getElementById('form-b-name').value = '';
-            document.getElementById('form-b-desc').value = '';
-            document.getElementById('form-b-status').value = 'مبنية';
-            document.getElementById('form-b-delivery').value = '';
-            document.getElementById('form-b-delivery-group').style.display = 'none';
-            document.getElementById('b-images-preview').innerHTML = '';
-            document.getElementById('form-floors-container').innerHTML = '';
-            document.getElementById('sidebar-delete-btn').style.display = 'none';
-            currentSidebarBuildingImages = [];
-            currentSidebarAptImagesMap = {};
-            document.getElementById('admin-sidebar').style.display = 'block';
         });
 
-        function openAdminEditSidebar(b) {
-            isEditingExisting = true;
-            editingBuildingId = b.id;
-            currentTempCoords = b.coords;
-
-            document.getElementById('admin-sidebar-title').innerText = `📝 تعديل بيانات: ${b.name}`;
-            document.getElementById('form-b-name').value = b.name;
-            document.getElementById('form-b-desc').value = b.locationDesc;
-            document.getElementById('form-b-status').value = b.buildingStatus || 'مبنية';
-            document.getElementById('form-b-delivery').value = b.deliveryDate || '';
-            toggleBuildingDeliveryInput(b.buildingStatus || 'مبنية');
-
-            currentSidebarBuildingImages = b.images || [];
-            const bPreview = document.getElementById('b-images-preview');
-            bPreview.innerHTML = '';
-            currentSidebarBuildingImages.forEach(src => { bPreview.innerHTML += `<img src="${src}"/>`; });
-
-            const container = document.getElementById('form-floors-container');
-            container.innerHTML = '';
-            currentSidebarAptImagesMap = {};
-
-            const floorsMap = {};
-            b.apartments.forEach(apt => {
-                if(!floorsMap[apt.floor]) floorsMap[apt.floor] = [];
-                floorsMap[apt.floor].push(apt);
+        function initAppListeners() {
+            onSnapshot(doc(db, 'settings', 'buildingOrder'), (snap) => { if(snap.exists()) buildingOrder = snap.data().order || []; renderTabs(); });
+            onSnapshot(collection(db, 'properties'), (snap) => { 
+                dataStore = snap.docs.map(d => ({id: d.id, ...d.data()})); 
+                renderTable(); 
+                window.updateMapMarkers(); // تحديث دبابيس الخريطة فورياً مع أي تغيير بالداتا
+                if(currentUserRole === 'admin' && document.getElementById('monthsCheckboxesContainer')) {
+                    window.populateMonthFilters();
+                    window.updateReportData();
+                }
+            });
+            onSnapshot(collection(db, 'resale'), (snap) => { resaleStore = snap.docs.map(d => ({id: d.id, ...d.data()})); renderResale(); });
+            
+            onSnapshot(collection(db, 'teams'), (snap) => {
+                teamsStore = snap.docs.map(d => ({id: d.id, ...d.data()}));
+                if(currentUserRole === 'admin') {
+                    window.renderUnifiedUserList();
+                    window.renderTeamsManagementList();
+                }
             });
 
-            let fIndex = 0;
-            for(let floorName in floorsMap) {
-                fIndex++;
-                const floorId = `floor-${fIndex}`;
-                const floorHtml = `
-                    <div class="nested-box" id="${floorId}">
-                        <button class="delete-icon-btn" style="position:absolute; top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
-                        <label>الدور:</label><input type="text" class="floor-name-input" value="${floorName}">
-                        <div class="apts-box"></div>
-                        <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
-                    </div>`;
-                container.insertAdjacentHTML('beforeend', floorHtml);
+            onSnapshot(query(collection(db, 'notifications'), orderBy('time', 'desc'), limit(15)), (snap) => {
+                const list = document.getElementById('notifList'); 
+                if(list) list.innerHTML = '';
+                if (!firstLoad) { 
+                    unreadCount++; 
+                    const badge = document.getElementById('notifBadge');
+                    if(badge) {
+                        badge.innerText = unreadCount; 
+                        badge.classList.remove('hidden'); 
+                    }
+                    notifSound.play().catch(()=>{}); 
+                }
+                snap.forEach(dDoc => {
+                    if(list) list.innerHTML += `<div class="p-3 border-b text-[10px] text-navy hover:bg-slate-50 text-right font-black italic uppercase transition">${dDoc.data().message}</div>`;
+                });
+                firstLoad = false;
+            });
+            onValue(ref(rtdb, 'status'), (snap) => { onlineUsers = snap.val() || {}; renderUnifiedUserList(); });
+            onSnapshot(collection(db, 'users'), (snap) => { window.allUsersData = snap.docs.map(d => ({id: d.id, ...d.data()})); renderUnifiedUserList(); if(currentUserRole === 'admin') window.renderTeamMembersList(); });
+        }
 
-                const aptsBox = document.getElementById(floorId).querySelector('.apts-box');
-                floorsMap[floorName].forEach(apt => {
-                    let aptUid = apt.id || `uid-${Math.random()}`;
-                    currentSidebarAptImagesMap[aptUid] = apt.images || [];
-                    const aptHtml = `
-                        <div class="apt-edit-box" id="${aptUid}">
-                            <button class="delete-icon-btn" style="position:absolute; top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
-                            <input type="text" class="apt-size" placeholder="المساحة" value="${apt.size}">
-                            <input type="text" class="apt-price" placeholder="السعر" value="${apt.price.replace(/[^\d]/g, '')}" style="margin-top:4px;">
-                            <input type="text" class="apt-view" placeholder="الإطلالة" value="${apt.view}" style="margin-top:4px;">
-                            <input type="text" class="apt-rooms" placeholder="التقسيم والغرف" value="${apt.rooms}" style="margin-top:4px;">
-                            <input type="text" class="apt-payment" placeholder="نظام السداد" value="${apt.payment}" style="margin-top:4px;">
-                            <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px;">
-                            <div class="image-preview">${(apt.images || []).map(img => `<img src="${img}"/>`).join('')}</div>
-                        </div>`;
-                    aptsBox.insertAdjacentHTML('beforeend', aptHtml);
+        let submitAction = 'login';
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginBtn = document.getElementById('loginBtn');
+            const regBtn = document.getElementById('regBtn');
+            if(loginBtn) loginBtn.addEventListener('click', () => { submitAction = 'login'; });
+            if(regBtn) regBtn.addEventListener('click', () => { submitAction = 'register'; });
+            
+            const salesInput = document.getElementById('salesName');
+            if(salesInput) {
+                salesInput.addEventListener('input', () => {
+                    let names = salesInput.value.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
+                    const wrapper = document.getElementById('sharedPercentageWrapper');
+                    if(wrapper) {
+                        wrapper.style.display = (names.length === 2) ? 'block' : 'none';
+                    }
                 });
             }
+        });
 
-            const delBtn = document.getElementById('sidebar-delete-btn');
-            delBtn.style.display = 'block';
-            delBtn.onclick = function() {
-                if(confirm(`هل أنت متأكد من حذف عمارة ${b.name} تماماً؟`)) {
-                    allBuildings = allBuildings.filter(x => x.id !== b.id);
-                    closeAdminSidebar();
-                    renderMarkers();
+        window.handleAuth = async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            const pass = document.getElementById('pass').value;
+            if(!email || !pass) { alert("برجاء ملء البيانات أولاً"); return; }
+            try {
+                if (submitAction === 'login') {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    alert("تم إنشاء الحساب وتسجيل الدخول بنجاح!");
                 }
+            } catch (error) {
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                    alert("خطأ في الإيميل أو الباسورد يا فنان، راجع بياناتك.");
+                } else if (error.code === 'auth/email-already-in-use') {
+                    alert("الإيميل ده مسجل مسبقاً، سجل دخول بيه مباشرة.");
+                } else if (error.code === 'auth/weak-password') {
+                    alert("الباسورد ضعيف جداً، خليه 6 أرقام أو حروف على الأقل.");
+                } else {
+                    alert("حدث خطأ أثناء العملية: " + error.message);
+                }
+            }
+        };
+
+        const commKeywords = ['محل', 'مكتب', 'تجارى', 'ادارى', 'إداري', 'صيدلية', 'عيادة', 'بدروم'];
+
+        window.toggleSearchMode = () => {
+            const btn = document.getElementById('searchModeBtn');
+            const input = document.getElementById('searchBox');
+            if (searchMode === 'size') {
+                searchMode = 'price';
+                btn.innerText = 'البحث بالسعر 💰';
+                btn.className = "bg-amber-500 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase";
+                input.placeholder = "🔍 ابحث بالسعر الحالي (تقريب 200 ألف ج)...";
+            } else {
+                searchMode = 'size';
+                btn.innerText = 'البحث بالمساحة 📐';
+                btn.className = "bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase";
+                input.placeholder = "🔍 ابحث بالمساحة الحالية (تقريب 10م)...";
+            }
+            renderTable();
+        };
+
+        window.toggleAvailableFilter = () => {
+            showOnlyAvailable = !showOnlyAvailable;
+            const btn = document.getElementById('availableFilterBtn');
+            if (showOnlyAvailable) {
+                btn.className = "bg-green-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase";
+            } else {
+                btn.className = "bg-white text-navy px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase";
+            }
+            renderTable();
+        };
+
+        window.renderTable = () => {
+            const tbody = document.getElementById('propertiesList'); 
+            if(!tbody) return;
+            let htmlBuffer = '';
+            const term = document.getElementById('searchBox').value.trim().toLowerCase();
+            if(document.getElementById('commToggleBtn')) {
+                document.getElementById('commToggleBtn').classList.toggle('hidden', activeTab === 'الكل' || activeTab === 'التجاري العام 🏢');
+            }
+
+            let filtered = dataStore.filter(p => {
+                const matchAvailable = showOnlyAvailable ? p.status === 'متاح' : true;
+                if (!matchAvailable) return false;
+
+                const isComm = commKeywords.some(k => p.floor?.toLowerCase().includes(k));
+                if (activeTab === 'التجاري العام 🏢' && !isComm) return false;
+                if (activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢' && p.area !== activeTab) return false;
+                if (activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢' && showCommercialOnly !== isComm) return false;
+
+                if (!term) return true;
+
+                const searchNum = parseFloat(term);
+                if (!isNaN(searchNum)) {
+                    if (searchMode === 'size') {
+                        const unitSize = parseFloat(p.size) || 0;
+                        return (unitSize >= searchNum - 10 && unitSize <= searchNum + 10);
+                    } else if (searchMode === 'price') {
+                        const unitPrice = parseFloat(p.price) || 0;
+                        return (unitPrice >= searchNum - 200000 && unitPrice <= searchNum + 200000);
+                    }
+                }
+
+                return (p.area?.toLowerCase().includes(term) || p.code?.toLowerCase().includes(term));
+            });
+
+            filtered.sort((a, b) => (parseInt(a.floor) || 0) - (parseInt(b.floor) || 0));
+            
+            filtered.forEach(item => {
+                const isComm = commKeywords.some(k => item.floor?.toLowerCase().includes(k));
+                const icon = isComm ? '🏢' : '🏠';
+                
+                let rawStatus = item.status || 'متاح';
+                let displayStatus = rawStatus;
+                
+                if (['متاح', 'متاح للبيع'].includes(rawStatus)) displayStatus = 'متاح';
+                else if (['تم الحجز', 'محجوز'].includes(rawStatus)) displayStatus = 'تم الحجز';
+                else if (['تم البيع', 'تعاقد'].includes(rawStatus)) displayStatus = 'تم البيع';
+
+                let statusCls = displayStatus === 'متاح' ? "bg-green-600 text-white" : displayStatus === 'تم الحجز' ? "bg-yellow-400 text-black shadow-sm" : "bg-red-600 text-white";
+                
+                htmlBuffer += `<tr class="border-b text-center text-sm bg-white hover:bg-blue-50 transition font-black">
+                    <td class="p-4">${icon}</td>
+                    <td class="p-4 text-navy text-right font-black italic">${item.code}</td>
+                    <td class="p-4">${item.area}</td>
+                    <td onclick="startEditFinish('${item.id}')" class="p-4 text-[10px] text-slate-400 italic edit-animate">${item.finish || 'طوب أحمر'}</td>
+                    <td class="p-4 text-slate-600 font-black">${item.size}م / د ${item.floor || '-'}</td>
+                    <td class="p-4 text-green-700 font-bold text-[10px]">${Number(item.unitPrice || 0).toLocaleString('en-US')}ج</td>
+                    <td onclick="window.openCalc(${item.price}, '${item.code}')" class="p-4 font-black text-blue-800 cursor-pointer underline italic">${Number(item.price).toLocaleString('en-US')}ج</td>
+                    <td class="p-4"><span class="px-3 py-1 rounded-full text-[10px] ${statusCls}">${displayStatus}</span></td>
+                    <td class="p-4 flex items-center justify-center gap-2">
+                        ${currentUserRole === 'admin' ? `<button onclick="openEditPrice('${item.id}', ${item.price}, '${item.code}')">⚙️</button>
+                        <button onclick="transferToResale('${item.id}')" title="تحويل لريسيل">🔄</button>
+                        <button onclick="deleteProperty('${item.id}', '${item.code}')" class="text-red-500">🗑️</button>
+                        <select onchange="window.handleStatusChangeTrigger('${item.id}', this.value, '${item.code}')" class="border rounded text-[8px] p-1 font-black italic"><option disabled selected>حالة</option><option value="متاح">متاح</option><option value="تم الحجز">تم الحجز</option><option value="تم البيع">تم البيع</option></select>` : ''}
+                        <button onclick="window.openCalc(${item.price}, '${item.code}')" class="bg-navy text-white px-2 py-1 rounded text-[10px] shadow-md uppercase italic font-black">احسب</button>
+                    </td></tr>`;
+            });
+            tbody.innerHTML = htmlBuffer;
+            renderTabs();
+            // توجيه الخريطة الذكي عند الضغط على أي تاب
+            if(window.mapInstance && activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢') {
+                window.focusMapOnBuilding(activeTab);
+            }
+        };
+
+        window.saveAgentNameSetup = async () => {
+            const name = document.getElementById('setupAgentNameInput').value.trim();
+            if(!name) { alert("أدخل اسمك الكريم أولاً يا فنان!"); return; }
+            await updateDoc(doc(db, 'users', loggedInUserDocId), { name: name });
+            window.currentAgentName = name;
+            document.getElementById('nameSetupModal').style.display = 'none';
+        };
+
+        window.handleStatusChangeTrigger = (id, value, code) => {
+            if (value === 'تم الحجز' || value === 'تم البيع') {
+                const propObj = dataStore.find(p => p.id === id);
+                const price = propObj ? (Number(propObj.price) || 0) : 0;
+                window.currentPendingStatus = { id, value, code, price };
+                
+                document.getElementById('statusDetailsModal').style.display = 'flex';
+                document.getElementById('buyerName').value = '';
+                document.getElementById('salesName').value = window.currentAgentName || '';
+                document.getElementById('customStatusDate').value = '';
+                document.getElementById('sharedFirstPct').value = '50'; 
+                document.getElementById('sharedPercentageWrapper').style.display = 'none';
+                
+                const commSourceWrapper = document.getElementById('commissionSourceWrapper');
+                if (commSourceWrapper) {
+                    commSourceWrapper.style.display = (value === 'تم البيع') ? 'block' : 'none';
+                }
+                document.getElementById('buyerName').focus();
+            } else {
+                updateDoc(doc(db,'properties',id),{status:value, salesName: '', buyerName: '', statusDate: '', teamName: '', commissionSource: '', salesComm: 0, tlComm: 0, sharedFirstPct: 50});
+                window.addLog(`تحديث ${code} لـ ${value}`);
+            }
+        };
+
+        window.saveStatusDetails = () => {
+            const buyer = document.getElementById('buyerName').value.trim();
+            const sales = document.getElementById('salesName').value.trim();
+            const customDate = document.getElementById('customStatusDate').value;
+            if(!buyer || !sales) { alert("برجاء إدخال اسم السيلز واسم المشتري يا باشا!"); return; }
+
+            const target = window.currentPendingStatus;
+            let yearMonth = customDate;
+            if(!yearMonth) {
+                const now = new Date();
+                yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+
+            const loggedInUserObj = window.allUsersData ? window.allUsersData.find(u => u.name === sales || u.email === auth.currentUser.email) : null;
+            let associatedTeamName = "بدون تيم";
+            if(loggedInUserObj && loggedInUserObj.teamId) {
+                const teamObj = teamsStore.find(t => t.id === loggedInUserObj.teamId);
+                if(teamObj) associatedTeamName = teamObj.name;
+            }
+
+            let source = "";
+            let salesComm = 0;
+            let tlComm = 0;
+
+            if (target.value === 'تم البيع') {
+                source = document.getElementById('commissionSource').value;
+                const millions = (target.price || 0) / 1000000;
+                if (source === 'personal') {
+                    salesComm = millions * 10000;
+                    tlComm = millions * 5000;
+                } else if (source === 'company') {
+                    salesComm = millions * 8000;
+                    tlComm = millions * 4000;
+                } else if (source === 'indirect') {
+                    salesComm = millions * 4000;
+                    tlComm = millions * 2000;
+                }
+            }
+
+            let rawPct = parseFloat(document.getElementById('sharedFirstPct').value);
+            if(isNaN(rawPct) || rawPct < 0 || rawPct > 100) rawPct = 50;
+
+            updateDoc(doc(db, 'properties', target.id), {
+                status: target.value,
+                buyerName: buyer,
+                salesName: sales,
+                statusDate: yearMonth,
+                teamName: associatedTeamName,
+                commissionSource: source,
+                salesComm: Math.round(salesComm),
+                tlComm: Math.round(tlComm),
+                sharedFirstPct: rawPct 
+            });
+
+            window.addLog(`تحديث ${target.code} لـ ${target.value} (بواسطة: ${sales} - ${associatedTeamName})`);
+            document.getElementById('statusDetailsModal').style.display = 'none';
+        };
+
+        window.resetPropertyStatusFromReport = (id, code) => {
+            if (confirm(`هل أنت متأكد من إلغاء العملية وإرجاع الكود ${code} متاحاً للبيع؟`)) {
+                updateDoc(doc(db, 'properties', id), {
+                    status: 'متاح',
+                    buyerName: '',
+                    salesName: '',
+                    statusDate: '',
+                    teamName: '',
+                    commissionSource: '',
+                    salesComm: 0,
+                    tlComm: 0,
+                    sharedFirstPct: 50
+                });
+                window.addLog(`إلغاء عملية وإرجاع كود ${code} متاحاً`);
+            }
+        };
+
+        window.populateMonthFilters = () => {
+            const filterContainer = document.getElementById('monthsCheckboxesContainer');
+            const archiveSelect = document.getElementById('archiveYearSelect');
+            if(!filterContainer || !archiveSelect) return;
+            
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonthStr = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+            let allMonths = new Set();
+            let yearsSet = new Set();
+
+            dataStore.forEach(p => { 
+                if(p.statusDate) {
+                    allMonths.add(p.statusDate);
+                    const fileYear = p.statusDate.split('-')[0];
+                    if(parseInt(fileYear) < currentYear) yearsSet.add(fileYear);
+                }
+            });
+
+            let selectHtml = `<option value="current">السنة الحالية (${currentYear})</option>`;
+            Array.from(yearsSet).sort().reverse().forEach(y => {
+                selectHtml += `<option value="${y}">أرشيف سنة ${y} 📁</option>`;
+            });
+            archiveSelect.innerHTML = selectHtml;
+            archiveSelect.value = selectedArchiveYear;
+
+            if (selectedArchiveYear === "current") {
+                document.getElementById('checkboxesWrapper').classList.remove('hidden');
+                let currentYearMonths = Array.from(allMonths).filter(m => m.startsWith(`${currentYear}-`));
+                if(!currentYearMonths.includes(currentMonthStr)) currentYearMonths.push(currentMonthStr);
+                currentYearMonths.sort().reverse();
+
+                if(selectedMonthsForReport.length === 0) selectedMonthsForReport = [currentMonthStr];
+
+                filterContainer.innerHTML = currentYearMonths.map(m => {
+                    const isChecked = selectedMonthsForReport.includes(m) ? 'checked' : '';
+                    return `<label class="flex items-center gap-1 bg-white border px-2 py-0.5 rounded-lg cursor-pointer hover:bg-slate-50 text-[11px] font-bold eng-num shadow-sm">
+                        <input type="checkbox" value="${m}" ${isChecked} onchange="window.handleMonthCheckboxChange(this)" class="rounded text-navy focus:ring-navy w-3 h-3">
+                        ${m}
+                    </label>`;
+                }).join('');
+            } else {
+                document.getElementById('checkboxesWrapper').classList.add('hidden');
+            }
+        };
+
+        window.handleArchiveYearChange = (select) => {
+            selectedArchiveYear = select.value;
+            selectedMonthsForReport = []; 
+            window.populateMonthFilters();
+            window.updateReportData();
+        };
+
+        window.handleMonthCheckboxChange = (checkbox) => {
+            if(checkbox.checked) {
+                if(!selectedMonthsForReport.includes(checkbox.value)) selectedMonthsForReport.push(checkbox.value);
+            } else {
+                selectedMonthsForReport = selectedMonthsForReport.filter(m => m !== checkbox.value);
+            }
+            window.updateReportData();
+        };
+
+        window.currentPendingSharedItem = null;
+
+        window.openSharedPctModalFromReport = (id, code, salesName, price) => {
+            let names = salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
+            if (names.length !== 2) return;
+
+            const item = dataStore.find(p => p.id === id);
+            let currentPct = item && item.sharedFirstPct !== undefined ? item.sharedFirstPct : 50;
+
+            window.currentPendingSharedItem = { id: id, code: code, names: names, price: price };
+            document.getElementById('sharedUnitCodeDisplay').innerText = code;
+            document.getElementById('sharedFirstAgentName').innerText = names[0];
+            document.getElementById('sharedSecondAgentName').innerText = names[1];
+            document.getElementById('promptAgentLabelName').innerText = names[0]; 
+            document.getElementById('cleanSharedPctInput').value = currentPct;
+            document.getElementById('cleanLeaderboardPromptModal').style.display = 'flex';
+        };
+
+        window.updateReportData = () => {
+            let soldCount = 0;
+            let reservedCount = 0;
+            let annualSoldCount = 0; 
+            
+            const now = new Date();
+            const currentYearPrefix = `${now.getFullYear()}-`; 
+
+            const reportTableBody = document.getElementById('reportItemsList');
+            if(!reportTableBody) return;
+            reportTableBody.innerHTML = '';
+
+            let salesVolumeStats = {};
+            let teamVolumeStats = {};
+
+            dataStore.forEach(p => {
+                if (p.statusDate && p.statusDate.startsWith(currentYearPrefix)) {
+                    if (p.status === 'تم البيع') annualSoldCount++;
+                }
+
+                let isMatch = false;
+                if (selectedArchiveYear === "current") {
+                    isMatch = selectedMonthsForReport.includes(p.statusDate);
+                } else {
+                    isMatch = p.statusDate && p.statusDate.startsWith(`${selectedArchiveYear}-`);
+                }
+
+                if (isMatch) {
+                    if (b => p.status === 'تم البيع') soldCount++;
+                    if (p.status === 'تم الحجز') reservedCount++;
+
+                    const displayTeamName = p.teamName ? p.teamName : "بدون تيم";
+                    const unitFullPrice = Number(p.price) || 0;
+                    let sharedActionBtn = "";
+                    
+                    if (p.status === 'تم البيع' && p.salesName) {
+                        let names = p.salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
+                        
+                        if (names.length === 2) {
+                            let fPct = p.sharedFirstPct !== undefined ? parseFloat(p.sharedFirstPct) : 50;
+                            let sPct = 100 - fPct;
+
+                            if (!salesVolumeStats[names[0]]) salesVolumeStats[names[0]] = 0;
+                            salesVolumeStats[names[0]] += unitFullPrice * (fPct / 100);
+
+                            if (!salesVolumeStats[names[1]]) salesVolumeStats[names[1]] = 0;
+                            salesVolumeStats[names[1]] += unitFullPrice * (sPct / 100);
+
+                            sharedActionBtn = `<button onclick="window.openSharedPctModalFromReport('${p.id}', '${p.code}', '${p.salesName}', ${unitFullPrice})" class="block mt-1 text-[9px] bg-navy text-white px-2 py-0.5 rounded shadow-sm font-extrabold hover:bg-slate-700 transition">نسبة الشراكة: ${fPct}/${sPct} ⚙️</button>`;
+                        } else {
+                            let priceWeight = names.length > 1 ? (unitFullPrice / names.length) : unitFullPrice;
+                            names.forEach(name => {
+                                if (!salesVolumeStats[name]) salesVolumeStats[name] = 0;
+                                salesVolumeStats[name] += priceWeight;
+                            });
+                        }
+
+                        if (displayTeamName) {
+                            if (!teamVolumeStats[displayTeamName]) teamVolumeStats[displayTeamName] = 0;
+                            teamVolumeStats[displayTeamName] += unitFullPrice; 
+                        }
+                    }
+
+                    let sourceBadge = "";
+                    if (p.status === 'تم البيع' && p.commissionSource) {
+                        const srcMap = { 'personal': 'شخصي', 'company': 'شركة', 'indirect': 'غير مباشر' };
+                        sourceBadge = `<span class="block text-[10px] text-slate-500 font-extrabold mt-1 bg-slate-100 rounded px-1 py-0.5 inline-block border border-slate-200">📍 المصدر: ${srcMap[p.commissionSource] || p.commissionSource.toUpperCase()}</span>`;
+                    }
+
+                    const commText = p.status === 'تم البيع' && p.commissionSource ? 
+                        `<div class="space-y-0.5 eng-num font-black">
+                            <span class="block text-[10px] text-emerald-700">سيلز: ${formatMoney(p.salesComm || 0)}ج</span>
+                            <span class="block text-[10px] text-indigo-700">قائد: ${formatMoney(p.tlComm || 0)}ج</span>
+                         </div>` : '-';
+
+                    const displayFullPrice = p.price ? `${Number(p.price).toLocaleString('en-US')}ج` : 'غير محدد';
+
+                    let statusAction = '';
+                    if (p.status === 'تم الحجز') {
+                        statusAction = `<button onclick="window.handleStatusChangeTrigger('${p.id}', 'تم البيع', '${p.code}')" class="block mt-1.5 text-[9px] bg-green-500 text-white px-2 py-1 rounded shadow-sm font-extrabold hover:bg-green-600 transition w-full">تأكيد البيع ✔️</button>`;
+                    }
+
+                    reportTableBody.innerHTML += `<tr class="border-b text-center text-xs text-slate-700 hover:bg-slate-50">
+                        <td class="p-3 font-bold text-navy">
+                            <span>${p.code || '-'}</span>
+                            <span onclick="openEditPrice('${p.id}', ${p.price}, '${p.code}')" class="block text-[10px] text-blue-700 font-extrabold mt-0.5 eng-num bg-blue-50/70 border border-blue-100 rounded py-0.5 px-1 cursor-pointer hover:bg-blue-200 transition" title="تعديل السعر">💰 ${displayFullPrice} ✏️</span>
+                        </td>
+                        <td class="p-3">${p.area || '-'}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black block ${p.status === 'تم البيع' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">${p.status}</span>
+                            ${statusAction}
+                            ${sourceBadge}
+                        </td>
+                        <td class="p-3 font-bold">
+                            <span>${p.salesName || '-'}</span>
+                            <span class="text-[9px] text-slate-400 block font-normal">(${displayTeamName})</span>
+                            ${sharedActionBtn}
+                            <button onclick="window.openEditTeamModal('${p.id}', '${p.code}', '${p.salesName}')" class="block mt-1 text-[9px] bg-slate-600 text-white px-2 py-0.5 rounded shadow-sm font-extrabold hover:bg-slate-800 transition">تعديل التيم 👥</button>
+                        </td>
+                        <td class="p-3">${p.buyerName || '-'}</td>
+                        <td class="p-3 text-[10px] eng-num text-slate-400 font-bold">${p.statusDate || '-'}</td>
+                        <td class="p-3 font-bold text-slate-800">${commText}</td>
+                        <td class="p-3 no-print"><button onclick="window.resetPropertyStatusFromReport('${p.id}', '${p.code}')" class="text-orange-600 hover:text-red-600 transition text-xs font-bold">🔄 تراجع</button></td>
+                    </tr>`;
+                }
+            });
+
+            document.getElementById('reportSoldCount').innerText = soldCount;
+            document.getElementById('reportReservedCount').innerText = reservedCount;
+            document.getElementById('reportAnnualSoldCount').innerText = annualSoldCount;
+            
+            const titleSuffix = selectedArchiveYear === "current" ? "للأشهر المحددة" : `لسنة ${selectedArchiveYear}`;
+            document.getElementById('soldCardTitle').innerText = `المباع ${titleSuffix}`;
+            document.getElementById('reservedCardTitle').innerText = `المحجوز ${titleSuffix}`;
+
+            renderTopPerformersWidgets(salesVolumeStats, teamVolumeStats);
+        };
+
+        window.openEditTeamModal = (propId, propCode, salesName) => {
+            window.currentEditingProp = { id: propId, code: propCode };
+            const modal = document.getElementById('editTeamModal');
+            const select = document.getElementById('teamSelectionList');
+            const salesContainer = document.getElementById('teamSalesSelectContainer');
+            
+            let names = salesName.split(/[\s]*[\+\/،,][\s]*|[\s]+و[\s]+/).map(n => n.trim()).filter(n => n.length > 0);
+            
+            if (names.length > 1) {
+                salesContainer.style.display = 'block';
+                let options = names.map(n => `<option value="${n}">${n}</option>`).join('');
+                document.getElementById('teamSalesSelect').innerHTML = options;
+            } else {
+                salesContainer.style.display = 'none';
+            }
+
+            select.innerHTML = '<option value="بدون تيم">بدون تيم</option>' + 
+                teamsStore.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
+            modal.style.display = 'flex';
+        };
+
+        window.savePropTeamChange = async () => {
+            const newTeam = document.getElementById('teamSelectionList').value;
+            const targetSales = document.getElementById('teamSalesSelect').value;
+            
+            if (window.currentEditingProp) {
+                await updateDoc(doc(db, 'properties', window.currentEditingProp.id), {
+                    teamName: newTeam,
+                    ...(document.getElementById('teamSalesSelectContainer').style.display !== 'none' ? { teamTargetSales: targetSales } : {})
+                });
+                document.getElementById('editTeamModal').style.display = 'none';
+                window.updateReportData();
+                window.addLog(`تعديل تيم الوحدة ${window.currentEditingProp.code} لـ ${newTeam}`);
+            }
+        };
+
+        window.saveCleanSharedPercentage = async () => {
+            let pctInput = parseFloat(document.getElementById('cleanSharedPctInput').value);
+            if (isNaN(pctInput) || pctInput < 0 || pctInput > 100) pctInput = 50;
+
+            if (window.currentPendingSharedItem) {
+                await updateDoc(doc(db, 'properties', window.currentPendingSharedItem.id), {
+                    sharedFirstPct: pctInput
+                });
+                document.getElementById('cleanLeaderboardPromptModal').style.display = 'none';
+                document.getElementById('cleanSharedPctInput').value = '50';
+                window.currentPendingSharedItem = null;
+                window.updateReportData();
+            }
+        };
+
+        window.savePriceByAdmin = async () => {
+            const val = unformatMoney(document.getElementById('adminPriceInput').value);
+            if (val > 0 && currentEditingPropId) {
+                await updateDoc(doc(db, 'properties', currentEditingPropId), { price: val });
+                document.getElementById('adminPriceModal').style.display = 'none';
+                window.addLog(`تعديل سعر الوحدة ${currentEditingPropId} لـ ${val}`);
+                if(document.getElementById('adminReportModal').style.display === 'flex') {
+                    window.updateReportData();
+                }
+            }
+        };
+
+        window.openEditPrice = (id, p, c) => {
+            currentEditingPropId = id;
+            document.getElementById('adminPriceModal').style.display = 'flex';
+            const input = document.getElementById('adminPriceInput');
+            input.value = formatMoney(p);
+            input.focus();
+            input.oninput = (e) => {
+                let val = cleanToEngNum(e.target.value);
+                e.target.value = formatMoney(val);
             };
-            document.getElementById('admin-sidebar').style.display = 'block';
+        };
+
+        function renderTopPerformersWidgets(salesVolumeStats, teamVolumeStats) {
+            const topSalesContainer = document.getElementById('topSalesOutput');
+            const topTeamContainer = document.getElementById('topTeamOutput');
+            
+            if (topSalesContainer) {
+                let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
+                                                            .sort((a, b) => b.volume - a.volume).slice(0, 3);
+                
+                if (sortedSales.length === 0) {
+                    topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
+                } else {
+                    topSalesContainer.innerHTML = sortedSales.map((s, idx) => {
+                        let medals = ['🥇  المركز الأول', '🥈 المركز الثاني', '🥉 المركز الثالث'];
+                        return `<div class="bg-slate-50 border p-3 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-1 shadow-sm">
+                            <span class="font-extrabold text-navy">${medals[idx]}: <span class="text-slate-800 underline underline-offset-2">${s.name}</span></span>
+                            <span class="text-emerald-700 eng-num font-black bg-white border px-3 py-1 rounded-xl shadow-inner text-xs">${formatMoney(s.volume)} ج</span>
+                        </div>`;
+                    }).join('');
+                }
+            }
+
+            if (topTeamContainer) {
+                let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
+                                                            .sort((a, b) => b.volume - a.volume);
+                
+                if (sortedTeams.length === 0) {
+                    topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
+                } else {
+                    let topTeam = sortedTeams[0];
+                    topTeamContainer.innerHTML = `<div class="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-2 shadow-sm">
+                        <span class="font-black text-blue-900 text-sm">🏆 التيم المتصدر: ${topTeam.name}</span>
+                        <span class="eng-num bg-white border border-blue-100 font-black px-4 py-1.5 rounded-xl shadow-sm text-navy text-xs">${formatMoney(topTeam.volume)} ج</span>
+                    </div>`;
+                }
+            }
         }
 
-        let floorCount = 600;
-        function addFloorForm() {
-            floorCount++;
-            const container = document.getElementById('form-floors-container');
-            const floorId = `floor-${floorCount}`;
+        window.toggleLeaderboardModal = () => {
+            const m = document.getElementById('leaderboardModal');
+            m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'flex' : 'none';
+        };
+
+        window.createNewTeam = async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('newTeamNameInput');
+            const name = input.value.trim();
+            if(!name) return;
+            await addDoc(collection(db, 'teams'), { name: name, time: serverTimestamp() });
+            input.value = '';
+            window.addLog(`إنشاء تيم جديد باسم: ${name}`);
+        };
+
+        window.deleteTeam = async (id, name) => {
+            if(confirm(`حذف تيم "${name}" نهائياً؟`)) {
+                await deleteDoc(doc(db, 'teams', id));
+                if(currentActiveReportTeamId === id) currentActiveReportTeamId = "";
+                window.addLog(`حذف تيم: ${name}`);
+            }
+        };
+
+        window.updateUserTeam = async (userId, teamId) => {
+            await updateDoc(doc(db, 'users', userId), { teamId: teamId });
+            window.addLog("تحديث تيم لموظف");
+        };
+
+        window.changeRole = async (id, r) => await updateDoc(doc(db, 'users', id), { role: r === 'admin' ? 'sales' : 'admin' });
+        window.kickUser = (uid) => remove(ref(rtdb, 'status/' + uid));
+        window.deleteUser = async (id) => { if(confirm('حذف؟')) await deleteDoc(doc(db, 'users', id)); };
+
+        window.changeAgentNameByAdmin = async (userId, oldName) => {
+            const newName = prompt("تعديل اسم الموظف العربي:", oldName || "");
+            if (newName !== null) {
+                await updateDoc(doc(db, 'users', userId), { name: newName.trim() });
+                window.addLog(`تعديل اسم موظف إلى ${newName}`);
+            }
+        };
+
+        window.setActiveReportTeam = (teamId) => {
+            currentActiveReportTeamId = teamId;
+            const btns = document.querySelectorAll('.team-list-item');
+            btns.forEach(b => b.classList.remove('bg-blue-50', 'border-navy'));
+            if(teamId) {
+                document.getElementById(`team-item-${teamId}`)?.classList.add('bg-blue-50', 'border-navy');
+            }
+            window.renderTeamMembersList();
+        };
+
+        window.renderTeamsManagementList = () => {
+            const container = document.getElementById('adminTeamsManagementList');
+            if(!container) return;
+            if(teamsStore.length === 0) {
+                container.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-3 italic">لا يوجد فرق مائلة.</p>`;
+                return;
+            }
+            container.innerHTML = teamsStore.map(t => {
+                const isActive = currentActiveReportTeamId === t.id ? 'bg-blue-50 border-navy' : 'border-slate-100';
+                return `<div id="team-item-${t.id}" onclick="window.setActiveReportTeam('${t.id}')" class="team-list-item flex items-center justify-between bg-white p-3 border-2 rounded-2xl mb-1.5 shadow-sm text-xs font-bold text-navy cursor-pointer hover:bg-slate-50 transition ${isActive}">
+                    <span class="flex items-center gap-1.5">👥 ${t.name}</span>
+                    <button onclick="event.stopPropagation(); window.deleteTeam('${t.id}', '${t.name}')" class="text-slate-300 hover:text-red-500 transition text-sm">🗑️</button>
+                </div>`;
+            }).join('');
+        };
+
+        window.renderTeamMembersList = () => {
+            const container = document.getElementById('teamMembersOutputList');
+            if(!container) return;
+            if(!currentActiveReportTeamId) {
+                container.innerHTML = `<div class="flex flex-col items-center justify-center py-8 text-slate-400 text-center text-xs font-bold italic gap-1">
+                    <span>👈 اضغط على اسم أي تيم من القائمة</span>
+                    <span>لمشاهدة الأعضاء المنضمين إليه هنا.</span>
+                </div>`;
+                return;
+            }
+            const activeTeam = teamsStore.find(t => t.id === currentActiveReportTeamId);
+            const members = window.allUsersData ? window.allUsersData.filter(u => u.teamId === currentActiveReportTeamId) : [];
+            
+            let html = `<p class="text-[11px] font-black mb-3 text-blue-900 border-b pb-1.5 uppercase italic">المتواجدين جوه (${activeTeam ? activeTeam.name : 'التيم'}):</p><div class="space-y-1.5 max-h-56 overflow-y-auto pr-1">`;
+            if(members.length === 0) {
+                html += `<p class="text-[11px] text-amber-600 text-center py-4 italic">التيم ده فاضي حالياً، وزّع فيه موظفين من القائمة بجانبه 🛑</p>`;
+            } else {
+                html += members.map(m => {
+                    const display = m.name ? m.name : "لم يكتب اسمه";
+                    return `<div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold text-slate-700 flex justify-between items-center shadow-sm">
+                        <span class="truncate pl-2">👤 ${display}</span>
+                        <span class="bg-blue-100 text-navy text-[9px] px-2 py-0.5 rounded-full font-black uppercase shrink-0">${m.role}</span>
+                    </div>`;
+                }).join('');
+            }
+            html += `</div>`;
+            container.innerHTML = html;
+        };
+
+        window.renderUnifiedUserList = () => { 
+            const list = document.getElementById('unifiedUserList'); 
+            if(!list || !window.allUsersData) return; 
+            list.innerHTML = ''; 
+            window.allUsersData.forEach(u => { 
+                const onlineKey = Object.keys(onlineUsers).find(key => onlineUsers[key].email === u.email); 
+                
+                let teamOptions = `<option value="">بدون تيم ❌</option>`;
+                teamsStore.forEach(t => {
+                    const isSel = u.teamId === t.id ? 'selected' : '';
+                    teamOptions += `<option value="${t.id}" ${isSel}>${t.name}</option>`;
+                });
+
+                const finalName = u.name ? u.name : "اسم غير مسجل باللغة العربية";
+
+                list.innerHTML += `<div class="bg-white p-4 rounded-2xl border border-slate-200 mb-2 flex flex-col gap-3 shadow-sm font-black transition hover:border-slate-300">
+                    <div class="flex items-center justify-between border-b pb-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-3 h-3 ${onlineKey ? 'bg-green-500 animate-pulse' : 'bg-slate-300'} rounded-full shrink-0"></span>
+                            <div class="min-w-0">
+                                <span onclick="window.changeAgentNameByAdmin('${u.id}', '${u.name || ''}')" class="text-blue-900 font-extrabold block text-sm underline cursor-pointer hover:text-blue-700">👤 ${finalName}</span>
+                                <span class="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-md font-black uppercase">${u.role}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                            ${onlineKey ? `<button onclick="kickUser('${onlineKey}')" class="bg-orange-500 text-white text-[9px] px-2 py-1 rounded-lg font-black shadow-sm transition">طرد</button>` : ''}
+                            <button onclick="deleteUser('${u.id}')" class="p-1.5 bg-red-50 text-red-600 rounded-lg text-xs" title="حذف">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 pt-1">
+                        <div class="flex items-center gap-1.5 w-full">
+                            <span class="text-[10px] text-slate-400 shrink-0">تعديل التيم:</span>
+                            <select onchange="window.updateUserTeam('${u.id}', this.value)" class="w-full border rounded-xl text-[11px] p-2 bg-slate-50 font-black outline-none cursor-pointer focus:border-navy">
+                                ${teamOptions}
+                            </select>
+                        </div>
+                        <button onclick="changeRole('${u.id}', '${u.role}')" class="px-3 py-2 bg-blue-50 text-blue-700 font-bold rounded-xl text-xs shrink-0 flex items-center gap-1">🛡️ رتبة</button>
+                    </div>
+                </div>`; 
+            }); 
+        };
+
+        window.importExcel = (e) => {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const j = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).SheetNames[0]]);
+                for(let i of j) {
+                    const p = unformatMoney(cleanToEngNum(i.price || i.Price || i['السعر'] || i['price '] || 0));
+                    const s = unformatMoney(cleanToEngNum(i.size || i.Size || i['المساحة'] || i['size '] || 0));
+                    const up = unformatMoney(cleanToEngNum(i.unitPrice || i.UnitPrice || i['سعر المتر'] || i['unitPrice '] || 0));
+                    await addDoc(collection(db, 'properties'), { code: String(i.code||i.Code||i['الكود']||''), area: String(i.area||i.Area||i['العمارة']||''), size: s, floor: String(i.floor||i.Floor||i['الدور']||'-'), price: p, unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0), finish: String(i.finish||i.Finish||i['التشطيب']||'طوب أحمر'), status: 'متاح', time: serverTimestamp(), sharedFirstPct: 50 });
+                }
+                alert("تم الاستيراد بنجاح");
+                location.reload();
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        };
+
+        window.addProp = async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('c').value.trim();
+            const area = document.getElementById('a').value.trim();
+            const size = Number(document.getElementById('s').value) || 0;
+            const floor = document.getElementById('f').value.trim();
+            const finish = document.getElementById('finishType').value;
+            const price = Number(document.getElementById('p').value) || 0;
+            const unitPrice = Number(document.getElementById('up').value) || 0;
+
+            if(!code || !area || !size) { alert("أدخل بيانات الكود، العمارة، والمساحة كحد أدنى!"); return; }
+
+            try {
+                await addDoc(collection(db, 'properties'), {
+                    code: code,
+                    area: area,
+                    size: size,
+                    floor: floor || '-',
+                    finish: finish,
+                    price: price,
+                    unitPrice: unitPrice > 0 ? unitPrice : (size > 0 ? Math.round(price / size) : 0),
+                    status: 'متاح',
+                    time: serverTimestamp(),
+                    sharedFirstPct: 50
+                });
+                alert("تم إضافة الوحدة العقارية الجديدة بنجاح! 🎉");
+                e.target.reset();
+            } catch (error) {
+                alert("حدث خطأ أثناء حفظ الوحدة: " + error.message);
+            }
+        };
+
+        window.autoCalcPrice = (mode) => {
+            const size = parseFloat(document.getElementById('s').value) || 0;
+            const totalInput = document.getElementById('p');
+            const unitInput = document.getElementById('up');
+
+            if (size <= 0) return;
+
+            if (mode === 'unit') {
+                const unitPrice = parseFloat(unitInput.value) || 0;
+                if (unitPrice > 0) totalInput.value = Math.round(unitPrice * size);
+            } else {
+                const totalPrice = parseFloat(totalInput.value) || 0;
+                if (totalPrice > 0) unitInput.value = Math.round(totalPrice / size);
+            }
+        };
+
+        window.addResale = async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('rc').value.trim();
+            const area = document.getElementById('ra').value.trim();
+            const size = Number(document.getElementById('rs').value) || 0;
+            const price = Number(document.getElementById('rp').value) || 0;
+            const finish = document.getElementById('rf').value;
+            
+            if(!code || !area) { alert("أدخل بيانات وحدة الريسيل الأساسية أولاً"); return; }
+            
+            await addDoc(collection(db, 'resale'), {
+                code: code,
+                area: area,
+                size: size,
+                price: price,
+                finish: finish,
+                time: serverTimestamp()
+            });
+            alert("تم حفظ وحدة الريسيل بنجاح 🔄");
+            e.target.reset();
+        };
+
+        window.transferToResale = async (id) => {
+            const item = dataStore.find(p => p.id === id);
+            if(item && confirm(`تحويل الوحدة كود ${item.code} إلى قسم الريسيل?`)) {
+                await addDoc(collection(db, 'resale'), {
+                    code: item.code || '',
+                    area: item.area || '',
+                    size: item.size || 0,
+                    price: item.price || 0,
+                    finish: item.finish || 'طوب أحمر',
+                    time: serverTimestamp()
+                });
+                alert('تم التحويل للريسيل بنجاح 🔄');
+            }
+        };
+
+        window.addPreviousMonthManual = () => {
+            const mStr = prompt("أدخل الشهر والسنة المراد إضافتهما للفلتر بصيغة (YYYY-MM) مثل 2025-12:");
+            if (mStr && /^\d{4}-\d{2}$/.test(mStr)) {
+                selectedMonthsForReport.push(mStr);
+                window.populateMonthFilters();
+                window.updateReportData();
+            } else if(mStr) {
+                alert("صيغة غير صحيحة، برجاء الالتزام بالمثال (2025-12).");
+            }
+        };
+
+        window.renderResale = () => { document.getElementById('resaleItemsList').innerHTML = resaleStore.map(item => `<div class="bg-white p-4 rounded-[2rem] border-r-[12px] border-navy shadow-md mb-3 flex justify-between items-center border border-slate-100 text-right font-black italic"><div class="flex-1 font-black"><div><span class="text-navy text-xl font-black italic">كود: ${item.code}</span><span class="bg-slate-400 text-white text-[10px] px-4 py-1 rounded-full uppercase italic ml-2">${item.finish}</span></div><p class="text-xs text-slate-500 mt-1">📍 ${item.area} | 📐 ${item.size}م</p></div><div class="flex items-center gap-3"><div class="text-navy font-black text-lg">${Number(item.price).toLocaleString('en-US')}ج</div><button onclick="window.openCalc(${item.price}, '${item.code}')" class="bg-navy text-white px-8 py-2 rounded-2xl shadow-md uppercase italic font-black">احسب</button>${currentUserRole === 'admin' ? `<button onclick="deleteResale('${item.id}')" class="text-red-500 text-xs font-black">حذف</button>` : ''}</div></div>`).join(''); };
+        window.deleteResale = async (id) => { if(confirm('حذف وحدة الريسيل نهائياً؟')) await deleteDoc(doc(db,'resale',id)); };
+        window.logout = () => signOut(auth).then(() => { location.reload(); });
+
+        window.tabDragStart = (e, i) => e.dataTransfer.setData('idx', i);
+        window.tabDrop = async (e, to) => { if(currentUserRole !== 'admin') return; const from = e.dataTransfer.getData('idx'); const allB = [...new Set(dataStore.map(i => i.area))]; let curO = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!curO.includes(b)) curO.push(b); }); const [moved] = curO.splice(from, 1); curO.splice(to, 0, moved); buildingOrder = curO; await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder }); };
+        window.startEditFinish = (id) => { if(currentUserRole==='admin'){ window.curId=id; document.getElementById('finishEditModal').style.display='flex'; } };
+        window.saveFinishChange = (v) => { updateDoc(doc(db,'properties',window.curId),{finish:v}); document.getElementById('finishEditModal').style.display='none'; window.addLog("تعديل تشطيب"); };
+        window.addLog = async (m) => await addDoc(collection(db,'notifications'),{message:m, time:serverTimestamp()});
+        
+        window.toggleAdminReportModal = () => {
+            const m = document.getElementById('adminReportModal');
+            m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'flex' : 'none';
+            if(m.style.display === 'flex') {
+                window.populateMonthFilters();
+                window.updateReportData();
+            }
+        };
+
+        window.printReport = () => {
+            window.print();
+        };
+
+        window.runCalc = (trigger) => {
+            const totalInput = document.getElementById('m_total');
+            const downInput = document.getElementById('m_down');
+            const downPctInput = document.getElementById('m_down_pct');
+            const dAmountInput = document.getElementById('m_d_amount');
+            const dPctInput = document.getElementById('m_d_pct');
+            const monthsInput = document.getElementById('m_months');
+            const monthlyInput = document.getElementById('res_monthly_input');
+            const resPctVal = document.getElementById('res_pct_val');
+
+            let total = unformatMoney(cleanToEngNum(totalInput.value));
+            let down = unformatMoney(cleanToEngNum(downInput.value));
+            let downPct = parseFloat(cleanToEngNum(downPctInput.value)) || 0;
+            let dAmount = unformatMoney(cleanToEngNum(dAmountInput.value));
+            let dPct = parseFloat(cleanToEngNum(dPctInput.value)) || 0;
+            let months = parseInt(cleanToEngNum(monthsInput.value)) || 0;
+            let monthly = unformatMoney(cleanToEngNum(monthlyInput.value));
+
+            if (trigger === 'price') {
+                if (downPct > 0) down = total * (downPct / 100);
+                if (dPct > 0) dAmount = total * (dPct / 100);
+            } else if (trigger === 'pct_input') {
+                down = total * (downPct / 100);
+            } else if (trigger === 'amount_input') {
+                downPct = total > 0 ? (down / total) * 100 : 0;
+            } else if (trigger === 'd_pct') {
+                dAmount = total * (dPct / 100);
+            } else if (trigger === 'd_amount') {
+                dPct = total > 0 ? (dAmount / total) * 100 : 0;
+            }
+
+            let rem = total - down - dAmount;
+            if (rem < 0) rem = 0;
+
+            if (trigger === 'output_edit') {
+                if (monthly > 0 && rem > 0) {
+                    months = Math.ceil(rem / monthly);
+                    monthsInput.value = months;
+                }
+            } else {
+                if (months > 0) {
+                    monthly = rem / months;
+                } else {
+                    monthly = 0;
+                }
+            }
+
+            if (trigger !== 'amount_input') downInput.value = down > 0 ? formatMoney(down) : '';
+            if (trigger !== 'pct_input') downPctInput.value = downPct > 0 ? downPct.toFixed(1).replace('.0', '') : '';
+            if (trigger !== 'd_amount') dAmountInput.value = dAmount > 0 ? formatMoney(dAmount) : '';
+            if (trigger !== 'd_pct') dPctInput.value = dPct > 0 ? dPct.toFixed(1).replace('.0', '') : '';
+            if (trigger !== 'output_edit') monthlyInput.value = monthly > 0 ? formatMoney(monthly) : '';
+
+            let totalPct = downPct + dPct;
+            if (resPctVal) {
+                resPctVal.innerText = totalPct > 0 ? `(إجمالي المقدم والدفعات: ${totalPct.toFixed(1).replace('.0', '')}%)` : '';
+            }
+        };
+
+        window.renderTabs = () => { const container = document.getElementById('buildingTabs'); if(!container) return; const allB = [...new Set(dataStore.map(i => i.area))]; let sorted = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!sorted.includes(b)) sorted.push(b); }); let html = `<button onclick="setTab('الكل')" class="tab-btn ${activeTab === 'الكل' ? 'active' : ''}">الكل</button>`; html += sorted.map((b, idx) => `<button draggable="true" ondragstart="window.tabDragStart(event, ${idx})" ondragover="event.preventDefault()" ondrop="window.tabDrop(event, ${idx})" onclick="setTab('${b}')" class="tab-btn ${activeTab === b ? 'active' : ''}">${b}</button>`).join(''); html += `<button onclick="setTab('التجاري العام 🏢')" class="tab-btn ${activeTab === 'التجاري العام 🏢' ? 'active' : ''}" style="${activeTab === 'التجاري العام 🏢' ? '' : 'background:#334155;color:white;'}">التجاري العام 🏢</button>`; container.innerHTML = html; };
+        window.openCalc = (p, c) => { 
+            document.getElementById('calcModal').style.display='flex'; 
+            document.getElementById('m_code').innerText=c; 
+            document.getElementById('m_total').value = formatMoney(p); 
+            document.getElementById('m_down').value='';
+            document.getElementById('m_down_pct').value='';
+            document.getElementById('m_d_amount').value='';
+            document.getElementById('m_d_pct').value='';
+            document.getElementById('m_months').value='';
+            document.getElementById('res_monthly_input').value='';
+            window.runCalc('price'); 
+        };
+        window.setTab = (t) => { activeTab = t; showCommercialOnly = false; renderTable(); };
+        window.toggleCommView = () => { showCommercialOnly = !showCommercialOnly; document.getElementById('commToggleBtn').innerText = showCommercialOnly ? "🏠 عرض السكني" : "🏢 عرض التجاري"; renderTable(); };
+        window.toggleNotif = () => { document.getElementById('notifPanel').classList.toggle('hidden'); unreadCount = 0; document.getElementById('notifBadge').classList.add('hidden'); };
+        window.toggleResaleMenu = () => document.getElementById('resaleMenu').classList.toggle('hidden');
+        window.toggleUsersList = () => document.getElementById('usersListContainer').classList.toggle('hidden');
+
+        window.deleteProperty = async (id, code) => {
+            if(confirm(`هل أنت متأكد من حذف الشقة (كود: ${code}) نهائياً؟`)) {
+                await deleteDoc(doc(db, 'properties', id));
+                window.addLog(`تم حذف شقة كود: ${code}`);
+            }
+        };
+
+        window.deleteCurrentBuilding = async () => {
+            if (activeTab === 'الكل' || activeTab === 'التجاري العام 🏢') {
+                alert('رجاءً اختر عمارة محددة من القائمة (التابات) لحذفها بالكامل.');
+                return;
+            }
+            
+            if (confirm(`⚠️ تحذير: هل أنت متأكد من حذف العمارة "${activeTab}" بكامل وحداتها؟ (لا يمكن التراجع)`)) {
+                const unitsToDelete = dataStore.filter(p => p.area === activeTab);
+                if(unitsToDelete.length === 0) return;
+                
+                const batch = writeBatch(db);
+                unitsToDelete.forEach(unit => {
+                    batch.delete(doc(db, 'properties', unit.id));
+                });
+                
+                await batch.commit();
+                
+                buildingOrder = buildingOrder.filter(b => b !== activeTab);
+                await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder });
+                
+                window.addLog(`تم حذف عمارة بالكامل: ${activeTab}`);
+                alert(`تم حذف عمارة ${activeTab} بنجاح!`);
+                window.setTab('الكل'); 
+            }
+        };
+
+        // 🗺️ ----------------------------------------------------
+        // سكريبت وهندسة الخرائط التفاعلية المدمجة بنظام النوافذ الفاخرة
+        // ----------------------------------------------------
+        window.mapInstance = null;
+        window.mapMarkersMap = {};
+        window.currentTempCoords = null;
+        window.tempMarker = null;
+        window.isEditingExistingMap = false;
+        window.editingBuildingIdMap = null;
+        window.currentSidebarBuildingImages = [];
+        window.currentSidebarAptImagesMap = {};
+        window.currentActiveApartmentData = null;
+
+        // دبل كليك سري على كلمة Inventory يفتح وضع الأدمن السري للخريطة
+        document.getElementById('loginSection').addEventListener('click', () => submitAction = 'login'); // أمان للقديم
+        setTimeout(() => {
+            const h1Trigger = document.querySelector('h1');
+            if(h1Trigger) {
+                h1Trigger.style.cursor = 'pointer';
+                h1Trigger.addEventListener('dblclick', () => {
+                    let password = prompt("أدخل الرقم السري لتفعيل إضافة العماير والتثبيت على الخريطة:");
+                    if(password === "1234") {
+                        document.getElementById('admin-indicator').style.display = 'inline-block';
+                        alert("وضع الخرائط المطور جاهز! اضغط في مكان فارغ على الخريطة لرفع العمارة وعمل لَوك للوكليشن.");
+                    } else if(password !== null) {
+                        alert("الرمز السري خطأ!");
+                    }
+                });
+            }
+        }, 1500);
+
+        window.initMapSystem = () => {
+            if(window.mapInstance) return;
+            // إحداثيات حدائق الأهرام البوابة الأولى كمركز افتراضي فخم
+            window.mapInstance = L.map('map-embedded').setView([29.9730, 31.1150], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.mapInstance);
+
+            // عند الضغط على الخريطة في وضع الأدمن المطور
+            window.mapInstance.on('click', function(e) {
+                if(document.getElementById('admin-indicator').style.display !== 'inline-block') return;
+                window.isEditingExistingMap = false;
+                window.currentTempCoords = [e.latlng.lat, e.latlng.lng];
+                
+                if (window.tempMarker) window.mapInstance.removeLayer(window.tempMarker);
+                window.tempMarker = L.marker(window.currentTempCoords).addTo(window.mapInstance);
+
+                // تصفير وفتح المودال المنبثق الفخم للإدخال
+                document.getElementById('form-b-name').value = '';
+                document.getElementById('form-b-desc').value = '';
+                document.getElementById('form-b-status').value = 'مبنية';
+                document.getElementById('form-b-delivery').value = '';
+                document.getElementById('form-b-delivery-group').style.display = 'none';
+                document.getElementById('b-images-preview').innerHTML = '';
+                document.getElementById('form-map-floors-container').innerHTML = '';
+                window.currentSidebarBuildingImages = [];
+                window.currentSidebarAptImagesMap = {};
+
+                document.getElementById('admin-map-modal').classList.add('active');
+            });
+        };
+
+        // تحديث الدبابيس ديناميكياً من LocalStorage أو داتا الفايربيس العقارية المدمجة
+        window.updateMapMarkers = () => {
+            if(!window.mapInstance) return;
+            // مسح الماركرز القديمة
+            for(let key in window.mapMarkersMap) {
+                window.mapInstance.removeLayer(window.mapMarkersMap[key]);
+            }
+            window.mapMarkersMap = {};
+
+            // قراءة الخرائط المحفوظة بـ كاش المتصفح المطور
+            let localBuildings = localStorage.getItem('map_buildings_integrated');
+            let mapData = localBuildings ? JSON.parse(localBuildings) : [];
+
+            mapData.forEach(b => {
+                const marker = L.marker(b.coords).addTo(window.mapInstance);
+                marker.bindTooltip(b.name, { permanent: true, direction: 'top' });
+                window.mapMarkersMap[b.name] = marker;
+
+                marker.on('click', function() {
+                    // لو أدمن مسجل باسوورد ومفعل التعديل
+                    if(document.getElementById('admin-indicator').style.display === 'inline-block') {
+                        window.openAdminEditMapModal(b);
+                    } else {
+                        window.openClientBuildingModal(b);
+                    }
+                });
+            });
+        };
+
+        window.focusMapOnBuilding = (name) => {
+            if(window.mapMarkersMap[name]) {
+                const marker = window.mapMarkersMap[name];
+                window.mapInstance.setView(marker.getLatLng(), 18);
+                // محاكاة الضغط لفتح التفاصيل تلقائياً للعميل
+                marker.fire('click');
+            }
+        };
+
+        window.toggleBuildingDeliveryInput = (val) => {
+            document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none';
+        };
+
+        let mapFloorCount = 0;
+        window.addMapFloorForm = () => {
+            mapFloorCount++;
+            const container = document.getElementById('form-map-floors-container');
+            const floorId = `map-floor-${mapFloorCount}`;
             const html = `
-                <div class="nested-box" id="${floorId}">
-                    <button class="delete-icon-btn" style="position:absolute; top:10px; left:10px;" onclick="removeFloorElement('${floorId}')">❌ حذف الدور</button>
-                    <label>الدور:</label><input type="text" class="floor-name-input" placeholder="مثال: الدور الثالث">
-                    <div class="apts-box"></div>
-                    <button class="btn" style="font-size:12px; margin-top:5px; background:#0284c7; width:100%;" onclick="addAptForm('${floorId}')">➕ إضافة شقة في هذا الدور</button>
+                <div class="nested-box text-right" id="${floorId}">
+                    <button class="delete-icon-btn" onclick="document.getElementById('${floorId}').remove()">❌ حذف الدور</button>
+                    <label class="font-bold text-xs text-slate-600">الدور:</label><input type="text" class="floor-name-input border p-1 rounded w-1/2 text-xs" placeholder="مثال: الدور الثاني">
+                    <div class="apts-box mt-2"></div>
+                    <button class="btn text-[10px] py-1 px-2 mt-1" style="background:#0284c7;" onclick="window.addMapAptForm('${floorId}')">➕ شقة في الدور</button>
                 </div>`;
             container.insertAdjacentHTML('beforeend', html);
-            addAptForm(floorId);
-        }
+            window.addMapAptForm(floorId);
+        };
 
-        function removeFloorElement(id) { document.getElementById(id).remove(); }
-
-        let aptCount = 600;
-        function addAptForm(floorId) {
-            aptCount++;
+        let mapAptCount = 0;
+        window.addMapAptForm = (floorId) => {
+            mapAptCount++;
             const box = document.getElementById(floorId).querySelector('.apts-box');
-            const aptUid = `uid-${aptCount}`;
-            currentSidebarAptImagesMap[aptUid] = [];
+            const aptUid = `map-uid-${mapAptCount}`;
+            window.currentSidebarAptImagesMap[aptUid] = [];
             const html = `
                 <div class="apt-edit-box" id="${aptUid}">
-                    <button class="delete-icon-btn" style="position:absolute; top:5px; left:5px;" onclick="this.parentElement.remove()">❌ حذف الشقة</button>
-                    <input type="text" class="apt-size" placeholder="المساحة: 125 متر" style="margin-top:4px;">
-                    <input type="text" class="apt-price" placeholder="السعر الإجمالي: 2000000" style="margin-top:4px;">
-                    <input type="text" class="apt-view" placeholder="الإطلالة: واجهة" style="margin-top:4px;">
-                    <input type="text" class="apt-rooms" placeholder="التقسيم: 3 غرف" style="margin-top:4px;">
-                    <input type="text" class="apt-payment" placeholder="نظام السداد: 18 شهر" style="margin-top:4px;">
-                    <input type="file" multiple accept="image/*" onchange="saveAptImages(this, '${aptUid}')" style="margin-top:4px; width:100%;">
+                    <button class="delete-icon-btn" style="top:2px; left:2px;" onclick="this.parentElement.remove()">&times;</button>
+                    <input type="text" class="apt-size w-full border p-1 rounded text-xs" placeholder="المساحة: 125م">
+                    <input type="text" class="apt-price w-full border p-1 rounded text-xs mt-1" placeholder="السعر الإجمالي">
+                    <input type="text" class="apt-view w-full border p-1 rounded text-xs mt-1" placeholder="الإطلالة: واجهة">
+                    <input type="text" class="apt-rooms w-full border p-1 rounded text-xs mt-1" placeholder="التقسيم الداخلي">
+                    <input type="text" class="apt-payment w-full border p-1 rounded text-xs mt-1" placeholder="نظام السداد: قسط">
+                    <input type="file" multiple accept="image/*" onchange="window.saveMapAptImages(this, '${aptUid}')" class="text-[10px] mt-1 w-full">
                     <div class="image-preview"></div>
                 </div>`;
             box.insertAdjacentHTML('beforeend', html);
-        }
+        };
 
-        function handleBuildingImages(input) {
+        window.handleMapBuildingImages = (input) => {
             if(input.files) {
                 Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => {
-                        currentSidebarBuildingImages.push(e.target.result);
+                    const r = new FileReader(); r.onload = (e) => {
+                        window.currentSidebarBuildingImages.push(e.target.result);
                         const img = document.createElement('img'); img.src = e.target.result;
                         document.getElementById('b-images-preview').appendChild(img);
-                    };
-                    r.readAsDataURL(f);
+                    }; r.readAsDataURL(f);
                 });
             }
-        }
+        };
 
-        function saveAptImages(input, uid) {
+        window.saveMapAptImages = (input, uid) => {
             const preview = input.nextElementSibling;
             if(input.files) {
                 Array.from(input.files).forEach(f => {
-                    const r = new FileReader();
-                    r.onload = (e) => {
-                        if(!currentSidebarAptImagesMap[uid]) currentSidebarAptImagesMap[uid] = [];
-                        currentSidebarAptImagesMap[uid].push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result;
-                        preview.appendChild(img);
-                    };
-                    r.readAsDataURL(f);
+                    const r = new FileReader(); r.onload = (e) => {
+                        if(!window.currentSidebarAptImagesMap[uid]) window.currentSidebarAptImagesMap[uid] = [];
+                        window.currentSidebarAptImagesMap[uid].push(e.target.result);
+                        const img = document.createElement('img'); img.src = e.target.result; preview.appendChild(img);
+                    }; r.readAsDataURL(f);
                 });
             }
-        }
+        };
 
-        function saveBuildingFromSidebar() {
-            const name = document.getElementById('form-b-name').value;
-            const desc = document.getElementById('form-b-desc').value;
+        window.saveBuildingFromSidebar = () => {
+            const name = document.getElementById('form-b-name').value.trim();
+            const desc = document.getElementById('form-b-desc').value.trim();
             const bStatus = document.getElementById('form-b-status').value;
-            const bDelivery = document.getElementById('form-b-delivery').value;
-            if(!name) return alert("اكتب اسم العمارة!");
+            const bDelivery = document.getElementById('form-b-delivery').value.trim();
+            if(!name) return alert("اكتب اسم العمارة للتثبيت!");
 
             const apartments = [];
             document.querySelectorAll('.nested-box').forEach(fb => {
@@ -477,174 +1311,664 @@
                     let rawPrice = ab.querySelector('.apt-price').value || "0";
                     let formattedPrice = isNaN(rawPrice) || rawPrice === "" ? rawPrice : Number(rawPrice).toLocaleString('en-US') + " ج.م";
                     apartments.push({
-                        id: ab.id, floor: fName,
-                        size: ab.querySelector('.apt-size').value || "غير محدد",
-                        price: formattedPrice,
-                        view: ab.querySelector('.apt-view').value || "غير محدد",
+                        id: ab.id, floor: fName, size: ab.querySelector('.apt-size').value || "غير محدد",
+                        price: formattedPrice, view: ab.querySelector('.apt-view').value || "غير محدد",
                         rooms: ab.querySelector('.apt-rooms').value || "غير محدد",
                         payment: ab.querySelector('.apt-payment').value || "غير محدد",
-                        images: currentSidebarAptImagesMap[ab.id] || []
+                        images: window.currentSidebarAptImagesMap[ab.id] || []
                     });
                 });
             });
 
-            if(isEditingExisting) {
-                allBuildings = allBuildings.map(item => {
-                    if(item.id === editingBuildingId) {
-                        return { ...item, name, locationDesc: desc, buildingStatus: bStatus, deliveryDate: bDelivery, images: currentSidebarBuildingImages, apartments };
-                    }
-                    return item;
+            let localBuildings = localStorage.getItem('map_buildings_integrated');
+            let mapData = localBuildings ? JSON.parse(localBuildings) : [];
+
+            if(window.isEditingExistingMap) {
+                mapData = mapData.map(item => {
+                    if(item.id === window.editingBuildingIdMap) {
+                        return { ...item, name, locationDesc: desc, buildingStatus: bStatus, deliveryDate: bDelivery, images: window.currentSidebarBuildingImages, apartments };
+                    } return item;
                 });
-                alert("تم تحديث بيانات العمارة بنجاح!");
             } else {
-                allBuildings.push({
-                    id: Date.now(), name, coords: currentTempCoords, locationDesc: desc,
-                    buildingStatus: bStatus, deliveryDate: bDelivery, images: currentSidebarBuildingImages, apartments
+                mapData.push({
+                    id: Date.now(), name, coords: window.currentTempCoords, locationDesc: desc,
+                    buildingStatus: bStatus, deliveryDate: bDelivery, images: window.currentSidebarBuildingImages, apartments
                 });
-                alert("تم حفظ وتثبيت العمارة الجديدة!");
             }
 
-            if(tempMarker) map.removeLayer(tempMarker);
-            tempMarker = null;
-            toggleAdminMode();
-            renderMarkers();
-        }
+            localStorage.setItem('map_buildings_integrated', JSON.stringify(mapData));
+            alert("تم حفظ العمارة وكل تفاصيل شققها بنجاح بالخريطة!");
+            if(window.tempMarker) window.mapInstance.removeLayer(window.tempMarker); window.tempMarker = null;
+            window.closeAdminModal(); window.updateMapMarkers();
+        };
 
-        // عرض العميل المنبثق مع إضافة ميزة تكبير الصور الواضح (Lightbox)
-        function openBuildingModal(b) {
-            currentSelectedBuilding = b;
-            document.getElementById('modal-b-name').innerText = b.name;
-            document.getElementById('modal-b-loc').innerText = "📍 " + b.locationDesc;
-            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة:</strong> عمارة متميزة بموقع استراتيجي في ${b.locationDesc}.`;
+        window.openAdminEditMapModal = (b) => {
+            window.isEditingExistingMap = true; window.editingBuildingIdMap = b.id; window.currentTempCoords = b.coords;
+            document.getElementById('admin-modal-title').innerText = `📝 تعديل بيانات عمارة الخريطة: ${b.name}`;
+            document.getElementById('form-b-name').value = b.name;
+            document.getElementById('form-b-desc').value = b.locationDesc;
+            document.getElementById('form-b-status').value = b.buildingStatus || 'مبنية';
+            document.getElementById('form-b-delivery').value = b.deliveryDate || '';
+            window.toggleBuildingDeliveryInput(b.buildingStatus || 'مبنية');
+
+            window.currentSidebarBuildingImages = b.images || [];
+            const bPreview = document.getElementById('b-images-preview'); bPreview.innerHTML = '';
+            window.currentSidebarBuildingImages.forEach(src => { bPreview.innerHTML += `<img src="${src}"/>`; });
+
+            const container = document.getElementById('form-map-floors-container'); container.innerHTML = '';
+            window.currentSidebarAptImagesMap = {};
+
+            const floorsMap = {};
+            (b.apartments || []).forEach(apt => {
+                if(!floorsMap[apt.floor]) floorsMap[apt.floor] = [];
+                floorsMap[apt.floor].push(apt);
+            });
+
+            let fIndex = 0;
+            for(let floorName in floorsMap) {
+                fIndex++; const floorId = `map-floor-edit-${fIndex}`;
+                const floorHtml = `
+                    <div class="nested-box text-right" id="${floorId}">
+                        <button class="delete-icon-btn" onclick="document.getElementById('${floorId}').remove()">❌ حذف الدور</button>
+                        <label>الدور:</label><input type="text" class="floor-name-input border p-1 rounded" value="${floorName}">
+                        <div class="apts-box mt-2"></div>
+                        <button class="btn text-[10px] py-1 px-2" style="background:#0284c7;" onclick="window.addMapAptForm('${floorId}')">➕ إضافة شقة في الدور</button>
+                    </div>`;
+                container.insertAdjacentHTML('beforeend', floorHtml);
+
+                const aptsBox = document.getElementById(floorId).querySelector('.apts-box');
+                floorsMap[floorName].forEach(apt => {
+                    let aptUid = apt.id || `map-uid-gen-${Math.random()}`;
+                    window.currentSidebarAptImagesMap[aptUid] = apt.images || [];
+                    const aptHtml = `
+                        <div class="apt-edit-box" id="${aptUid}">
+                            <button class="delete-icon-btn" onclick="this.parentElement.remove()">❌</button>
+                            <input type="text" class="apt-size w-full border p-1 rounded text-xs" value="${apt.size}">
+                            <input type="text" class="apt-price w-full border p-1 rounded text-xs mt-1" value="${apt.price.replace(/[^\d]/g, '')}">
+                            <input type="text" class="apt-view w-full border p-1 rounded text-xs mt-1" value="${apt.view}">
+                            <input type="text" class="apt-rooms w-full border p-1 rounded text-xs mt-1" value="${apt.rooms}">
+                            <input type="text" class="apt-payment w-full border p-1 rounded text-xs mt-1" value="${apt.payment}">
+                            <input type="file" multiple accept="image/*" onchange="window.saveAptImages(this, '${aptUid}')" class="text-[10px] mt-1 w-full">
+                            <div class="image-preview">${(apt.images || []).map(img => `<img src="${img}"/>`).join('')}</div>
+                        </div>`;
+                    aptsBox.insertAdjacentHTML('beforeend', aptHtml);
+                });
+            }
+
+            const delBtn = document.getElementById('sidebar-delete-btn'); delBtn.style.display = 'block';
+            delBtn.onclick = function() {
+                if(confirm(`حذف عمارة ${b.name} تماماً من نظام الخرائط؟`)) {
+                    let localBuildings = localStorage.getItem('map_buildings_integrated');
+                    let mapData = localBuildings ? JSON.parse(localBuildings) : [];
+                    mapData = mapData.filter(x => x.id !== b.id);
+                    localStorage.setItem('map_buildings_integrated', JSON.stringify(mapData));
+                    window.closeAdminModal(); window.updateMapMarkers();
+                }
+            };
+            document.getElementById('admin-map-modal').classList.add('active');
+        };
+
+        window.openClientBuildingModal = (b) => {
+            window.currentSelectedBuilding = b;
+            document.getElementById('modal-b-name').innerText = "عمارة " + b.name;
+            document.getElementById('modal-b-loc').innerText = "📍 " + (b.locationDesc || "حدائق الأهرام");
+            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة للشركة:</strong> عمارة متميزة بموقع استراتيجي رائع في ${b.locationDesc || 'حدائق الأهرام'}.`;
             
+            document.getElementById('google-maps-btn').onclick = function() {
+                window.open(`https://www.google.com/maps/search/?api=1&query=${b.coords[0]},${b.coords[1]}`, '_blank');
+            };
+
             const statusZone = document.getElementById('modal-b-status-zone');
             if(b.buildingStatus === 'مبنية') {
-                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام الفوري 🔑</span>`;
+                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام 🔑</span>`;
             } else {
-                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span><p style="font-size:12px; margin-top:4px; color:#c2410c; font-weight:bold;">📅 التسليم: ${b.deliveryDate || 'قريباً'}</p>`;
+                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span><p class="text-[11px] mt-1 text-orange-600 font-bold">🕒 التسليم: ${b.deliveryDate || 'قريباً'}</p>`;
             }
 
-            const gallery = document.getElementById('modal-b-gallery');
-            gallery.innerHTML = '';
+            const gallery = document.getElementById('modal-b-gallery'); gallery.innerHTML = '';
             if(b.images && b.images.length > 0) {
-                b.images.forEach(img => { 
-                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')" title="اضغط لعرضها بوضوح فائق"/>`; 
-                });
-            } else {
-                gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور للواجهة والمداخل حالياً.</p>';
-            }
+                b.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.viewImageInLightbox('${img}')"/>`; });
+            } else { gallery.innerHTML = '<p class="text-slate-400 text-xs py-2">📸 لم يتم رفع صور واجهة للعمارة حالياً.</p>'; }
 
-            const floorsList = document.getElementById('modal-floors-list');
-            floorsList.innerHTML = '';
-            const uniqueFloors = [...new Set(b.apartments.map(a => a.floor))];
+            const floorsList = document.getElementById('modal-floors-list'); floorsList.innerHTML = '';
+            const uniqueFloors = [...new Set((b.apartments || []).map(a => a.floor))];
             uniqueFloors.forEach(floorName => {
-                floorsList.innerHTML += `<button class="floor-btn" onclick="selectFloor('${floorName}')">🏢 ${floorName}</button>`;
+                floorsList.innerHTML += `<button class="floor-btn" onclick="window.selectMapFloor('${floorName}')">🏢 ${floorName}</button>`;
             });
 
             document.getElementById('floors-section').classList.remove('fade-out');
             document.getElementById('sizes-section').classList.add('fade-out');
             document.getElementById('building-modal').classList.add('active');
-        }
+        };
 
-        function selectFloor(floorName) {
+        window.selectMapFloor = (floorName) => {
             document.getElementById('selected-floor-title').innerText = `المساحات المتاحة في (${floorName}):`;
-            const sizesList = document.getElementById('modal-sizes-list');
-            sizesList.innerHTML = '';
-
-            const filteredApts = currentSelectedBuilding.apartments.filter(a => a.floor === floorName);
+            const sizesList = document.getElementById('modal-sizes-list'); sizesList.innerHTML = '';
+            const filteredApts = window.currentSelectedBuilding.apartments.filter(a => a.floor === floorName);
             filteredApts.forEach(apt => {
                 sizesList.innerHTML += `
-                    <div class="size-card" onclick="openApartmentModal(${JSON.stringify(apt).replace(/"/g, '&quot;')})">
-                        <div>
-                            <strong style="font-size:18px; color:#1e3a8a;">📐 مساحة ${apt.size}</strong>
-                            <p style="font-size:13px; color:#64748b; margin-top:4px;">👁️ الإطلالة: ${apt.view}</p>
-                        </div>
+                    <div class="size-card" onclick='window.openMapApartmentModal(${JSON.stringify(apt)})'>
+                        <div><strong class="text-navy text-base">📐 مساحة ${apt.size} م</strong><p class="text-xs text-slate-500 mt-1">👁️ الإطلالة: ${apt.view}</p></div>
                         <span class="price-badge">${apt.price}</span>
                     </div>`;
             });
-
             document.getElementById('floors-section').classList.add('fade-out');
-            const sizesSection = document.getElementById('sizes-section');
-            sizesSection.classList.remove('fade-out');
-            sizesSection.classList.add('fade-in');
-        }
+            const sizesSection = document.getElementById('sizes-section'); sizesSection.classList.remove('fade-out'); sizesSection.classList.add('fade-in');
+        };
 
-        let currentActiveAptPrice = 0;
-        function openApartmentModal(apt) {
-            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة بمساحة ${apt.size}`;
+        window.openMapApartmentModal = (apt) => {
+            window.currentActiveApartmentData = apt;
+            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}`;
             document.getElementById('apt-modal-view').innerText = apt.view;
             document.getElementById('apt-modal-rooms').innerText = apt.rooms;
-            document.getElementById('apt-modal-price').innerText = `السعر الإجمالي: ${apt.price}`;
-            document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد المتاح: نفع السداد على ${apt.payment}`;
+            document.getElementById('apt-modal-price').innerText = `السعر: ${apt.price}`;
+            document.getElementById('apt-modal-payment').innerText = `💳 نظام السداد: ${apt.payment}`;
             
-            currentActiveAptPrice = parseInt(apt.price.replace(/[^\d]/g, '')) || 0;
-            document.getElementById('calc-results').style.display = 'none';
+            document.getElementById('sidebar-call-btn').href = `tel:01000000000`;
+            // تزويد الاسم تلقائياً للواتس
+            let sName = window.currentAgentName || "المبيعات";
+            document.getElementById('whatsapp-link-map').href = `https://wa.me/201000000000?text=أهلاً بك أ/ ${sName}، أريد الاستفسار عن شقة مساحة ${apt.size} في عمارة ${window.currentSelectedBuilding.name}`;
 
-            // 🎯 تحديث روابط السيلز المحفوظة بشكل فوري وديناميكي عند تصفح الكارت
-            document.getElementById('sidebar-call-btn').href = `tel:${currentSalesData.phone}`;
-            document.getElementById('whatsapp-link').href = `https://wa.me/${currentSalesData.whatsapp}?text=أهلاً بك، أنا مهتم بالاستفسار عن شقة مساحة ${apt.size} في ${currentSelectedBuilding.name} المتاحة بسعر ${apt.price}`;
-
-            const gallery = document.getElementById('apt-modal-gallery');
-            gallery.innerHTML = '';
+            const gallery = document.getElementById('apt-modal-gallery'); gallery.innerHTML = '';
             if(apt.images && apt.images.length > 0) {
-                apt.images.forEach(img => { 
-                    gallery.innerHTML += `<img src="${img}" onclick="viewImageInLightbox('${img}')" title="اضغط لعرضها بوضوح فائق"/>`; 
-                });
-            } else {
-                gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px; padding:10px 0;">📸 لم يتم رفع صور داخلية للشقة بعد.</p>';
-            }
-
+                apt.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.viewImageInLightbox('${img}')"/>`; });
+            } else { gallery.innerHTML = '<p class="text-slate-400 text-xs py-2">📸 لم يتم رفع صور داخلية للشقة بعد.</p>'; }
             document.getElementById('apartment-modal').classList.add('active');
-        }
+        };
 
-        function calculateFinancing() {
-            if(currentActiveAptPrice === 0) return;
-            let downPayment = currentActiveAptPrice * 0.10; 
-            let remaining = currentActiveAptPrice - downPayment;
-            let monthlyInstallment = remaining / 18; 
-            
-            const calcBox = document.getElementById('calc-results');
-            calcBox.innerHTML = `
-                <p style="color:#15803d; font-weight:bold;">📉 الحسبة التقريبية المتاحة (مقدم 10% والباقي على 18 شهر):</p>
-                <p style="margin-top:6px;">💰 <strong>المقدم المطلوب:</strong> ${Math.round(downPayment).toLocaleString()} ج.م</p>
-                <p style="margin-top:4px;">🗓️ <strong>القسط الشهري التقريبي:</strong> ${Math.round(monthlyInstallment).toLocaleString()} ج.م / شهرياً</p>
-            `;
-            calcBox.style.display = 'block';
-        }
+        window.openViewingSchedulerModal = () => { document.getElementById('scheduler-modal').classList.add('active'); };
+        window.closeViewingSchedulerModal = () => { document.getElementById('scheduler-modal').classList.remove('active'); };
 
-        // 🔑 وظائف إنشاء روابط السيلز ونسخها لحفظ الحقوق والعمولات
-        function openSalesModal() { document.getElementById('sales-modal').classList.add('active'); }
-        function closeSalesModal() { document.getElementById('sales-modal').classList.remove('active'); }
+        window.sendViewingRequestToSalesWhatsApp = () => {
+            const clientName = document.getElementById('client-name-input').value.trim();
+            const viewingDate = document.getElementById('client-date-input').value;
+            const viewingTime = document.getElementById('client-time-input').value;
+            if(!clientName || !viewingDate || !viewingTime) return alert("برجاء إدخال اسمك وتحديد اليوم والساعة لترتيب الزيارة!");
+
+            let sName = window.currentAgentName || "المبيعات";
+            const messageText = `مرحباً أ/ ${sName}،\nلقد قام العميل: *${clientName}* بطلب حجز موعد معاينة لشقة من تطبيق الخريطة الذكية.\n\n📊 *تفاصيل الوحدة:*\n- عمارة: *عمارة ${window.currentSelectedBuilding.name}*\n- المساحة: *${window.currentActiveApartmentData.size}*\n- الطابق: *${window.currentActiveApartmentData.floor}*\n\n📅 *موعد الزيارة المقترح:*\n- التاريخ: *${viewingDate}*\n- الوقت: *${viewingTime}*`;
+            window.open(`https://wa.me/201000000000?text=${encodeURIComponent(messageText)}`, '_blank');
+            window.closeViewingSchedulerModal(); document.getElementById('apartment-modal').classList.remove('active');
+        };
+
+        window.viewImageInLightbox = (src) => {
+            const lightbox = document.getElementById('lightbox-overlay');
+            const lightboxImg = document.getElementById('lightbox-img');
+            lightboxImg.src = src; lightbox.style.display = 'flex';
+        };
+        window.closeLightbox = () => { document.getElementById('lightbox-overlay').style.display = 'none'; };
+        window.closeAdminModal = () => { document.getElementById('admin-map-modal').classList.remove('active'); if(window.tempMarker) window.mapInstance.removeLayer(window.tempMarker); window.tempMarker = null; };
+        window.closeBuildingModal = () => { document.getElementById('building-modal').classList.remove('active'); };
+        window.closeApartmentModal = () => { document.getElementById('apartment-modal').classList.remove('active'); };
+        window.closeAdminSidebar = () => { window.closeAdminModal(); };
+        window.goBackToFloors = () => { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.remove('fade-out'); fs.classList.add('fade-in'); };
+        window.closeModal = (modal, e) => { if(e.target === modal) modal.classList.remove('active'); };
+        window.openSalesModal = () => { document.getElementById('sales-modal').classList.add('active'); };
+        window.closeSalesModal = () => { document.getElementById('sales-modal').classList.remove('active'); };
         
-        function generateSalesLink() {
-            const name = document.getElementById('sales-name-input').value;
-            const phone = document.getElementById('sales-phone-input').value;
-            let ws = document.getElementById('sales-ws-input').value;
-            
-            if(!name || !phone || !ws) return alert("من فضلك املأ جميع بيانات السيلز لإصدار اللينك بشكل صحيح!");
-            if(!ws.startsWith('20')) ws = '20' + Number(ws); // تظبيط مفتاح مصر للواتساب تلقائياً
-
+        window.generateSalesLink = () => {
+            const name = document.getElementById('sales-name-input').value.trim();
+            const phone = document.getElementById('sales-phone-input').value.trim();
+            let ws = document.getElementById('sales-ws-input').value.trim();
+            if(!name || !phone || !ws) return alert("املا البيانات!");
+            if(!ws.startsWith('20')) ws = '20' + Number(ws);
             const baseUrl = window.location.origin + window.location.pathname;
             const generatedUrl = `${baseUrl}?sales_name=${encodeURIComponent(name)}&sales_phone=${encodeURIComponent(phone)}&sales_ws=${encodeURIComponent(ws)}`;
-            
             const linkBox = document.getElementById('generated-link-box');
-            linkBox.innerText = generatedUrl;
-            linkBox.style.display = 'block';
-            
-            // نسخ اللينك فورياً للمحافظة
+            linkBox.innerText = generatedUrl; linkBox.style.display = 'block';
             navigator.clipboard.writeText(generatedUrl);
-            alert("مبروك يا بطل! تم إصدار لينك السيلز المخصص ونسخه في حافظة جهازك بنجاح. ابعته لعملائك وحقك محفوظ!");
-        }
-
-        function goBackToFloors() { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.remove('fade-out'); fs.classList.add('fade-in'); }
-        function closeBuildingModal() { document.getElementById('building-modal').classList.remove('active'); }
-        function closeApartmentModal() { document.getElementById('apartment-modal').classList.remove('active'); }
-        function closeModal(modal, e) { if(e.target === modal) modal.classList.remove('active'); }
-        function closeAdminSidebar() { document.getElementById('admin-sidebar').style.display = 'none'; if(tempMarker) map.removeLayer(tempMarker); tempMarker = null; }
-
-        // فحص اللينك فور فتح المنظومة لتحديد هوية السيلز المستلم
-        checkSalesQuery();
-        renderMarkers();
+            alert("تم إصدار اللينك العقاري ونسخه بنجاح وحفظ عمولتك!");
+        };
     </script>
+</head>
+<body class="bg-white text-right font-sans">
+    <div id="loginSection" class="min-h-screen flex items-center justify-center p-4 font-black">
+        <form onsubmit="handleAuth(event)" class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border-t-8 border-navy">
+            <h2 class="text-4xl font-black text-navy mb-6 font-serif uppercase tracking-tighter italic">Inventory</h2>
+            <input id="email" type="email" placeholder="الإيميل" class="w-full border p-3 rounded-xl mb-3 outline-none text-center bg-slate-50 italic uppercase font-black" required>
+            <input id="pass" type="password" placeholder="الباسورد" class="w-full border p-3 rounded-xl mb-5 outline-none text-center bg-slate-50 italic uppercase font-black" required>
+            <div class="flex gap-2 font-black italic">
+                <button type="submit" id="loginBtn" class="flex-1 bg-navy text-white p-3 rounded-xl font-black shadow-lg hover:bg-slate-800 transition uppercase italic">دخول</button>
+                <button type="button" id="regBtn" class="flex-1 bg-slate-100 text-navy p-3 rounded-xl border border-navy/20 hover:bg-slate-200 transition uppercase italic">سجل الآن</button>
+            </div>
+        </form>
+    </div>
+
+    <div id="appSection" class="hidden max-w-6xl mx-auto p-4 md:p-8 font-black uppercase">
+        <header class="flex justify-between items-center mb-6 bg-white p-5 rounded-2xl shadow-sm border-r-8 border-navy relative font-black">
+            <h1 class="text-3xl font-black text-navy italic font-serif tracking-tighter uppercase select-none">Inventory</h1>
+            <div class="flex items-center gap-4 font-black">
+                <span id="admin-indicator" class="hidden bg-red-100 text-red-700 text-[10px] px-3 py-1.5 rounded-full font-black border border-red-200 animate-pulse">⚙️ وضع الأدمن بالخريطة نشط</span>
+                <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
+                <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
+                <div class="relative cursor-pointer font-black" onclick="toggleNotif()">
+                    <div class="bg-navy p-2 rounded-xl text-white shadow-md text-lg">🔔</div>
+                    <span id="notifBadge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-white font-black">0</span>
+                </div>
+                <button onclick="logout()" class="text-xs text-red-500 font-black bg-red-50 px-4 py-2 rounded-xl border border-red-100 uppercase italic">خروج</button>
+            </div>
+            <div id="notifPanel" class="hidden absolute top-20 left-4 w-64 bg-white shadow-2xl rounded-2xl border border-slate-100 z-[999] overflow-hidden font-black">
+                <div class="p-3 bg-slate-50 border-b font-black text-[10px] text-navy italic uppercase text-right">آخر التحديثات</div>
+                <div id="notifList" class="max-h-64 overflow-y-auto font-black italic"></div>
+            </div>
+        </header>
+
+        <div class="w-full bg-white p-4 rounded-3xl shadow-lg border border-slate-200 mb-6 no-print">
+            <h3 class="text-navy text-xs font-black mb-2 text-right">🗺️ الخريطة العقارية التفاعلية الذكية:</h3>
+            <div id="map-embedded" class="w-full h-[320px] rounded-2xl border" style="z-index:1;"></div>
+        </div>
+
+        <div id="buildingTabs" class="flex gap-2 flex-wrap pb-4 mb-4 border-b border-slate-100 font-black italic uppercase"></div>
+
+        <div id="usersControl" class="hidden bg-white p-4 rounded-2xl shadow-md border-r-4 border-slate-400 mb-4 font-black italic uppercase">
+            <div class="flex justify-between items-center cursor-pointer font-black" onclick="toggleUsersList()">
+                <h3 class="text-xs font-black text-slate-700 italic">إدارة الفريق وهيكلة الفريق (Teams) 🛡️:</h3>
+                <span class="text-slate-400 transition uppercase font-black">▼</span>
+            </div>
+            <div id="usersListContainer" class="mt-4 hidden font-black">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 bg-slate-50 p-4 rounded-2xl shadow-inner">
+                    
+                    <div class="lg:col-span-1 border-b lg:border-b-0 lg:border-l pb-4 lg:pb-0 lg:pl-4 border-slate-200">
+                        <p class="text-[10px] font-black mb-2 text-navy italic uppercase underline">إضافة تيم جديد 👥</p>
+                        <form onsubmit="window.createNewTeam(event)" class="flex gap-2 mb-3">
+                            <input id="newTeamNameInput" type="text" placeholder="اسم التيم (مثال: تيم 1)" class="w-full border p-2.5 rounded-xl text-center text-xs outline-none bg-white font-bold" required>
+                            <button type="submit" class="bg-navy text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm hover:bg-slate-800 transition">إضافة</button>
+                        </form>
+                        <p class="text-[9px] font-black mb-1.5 text-slate-400 uppercase italic">اضغط على التيم لعرض الموظفين 👇:</p>
+                        <div id="adminTeamsManagementList" class="max-h-52 overflow-y-auto pr-1 space-y-1"></div>
+                    </div>
+
+                    <div class="lg:col-span-1 border-b lg:border-b-0 lg:border-l pb-4 lg:pb-0 lg:pl-4 border-slate-200">
+                        <div id="teamMembersOutputList" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm min-h-[180px]"></div>
+                    </div>
+
+                    <div class="lg:col-span-1">
+                        <p class="text-[10px] font-black mb-2 text-navy italic uppercase underline">توزيع وهيكلة الموظفين على الفرق:</p>
+                        <div id="unifiedUserList" class="max-h-72 overflow-y-auto pr-1 space-y-2"></div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <button id="commToggleBtn" onclick="toggleCommView()" class="hidden bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-black mb-4 shadow-lg hover:bg-navy transition font-black italic uppercase">🏢 عرض التجاري</button>
+
+        <div id="adminArea" class="hidden mb-6 space-y-3 font-black">
+             <div class="bg-blue-50 p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center">
+                <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest font-black">📁 رفع شيت إكسيل (Bulk Upload)<input type="file" accept=".xlsx, .xls" onchange="importExcel(event)" class="hidden font-black italic uppercase"></label>
+             </div>
+             <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-md grid grid-cols-2 md:grid-cols-7 gap-3 items-end border border-slate-100 font-black italic uppercase">
+                <input id="c" placeholder="كود" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="a" placeholder="عمارة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="s" oninput="window.autoCalcPrice('size')" placeholder="مساحة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="f" placeholder="دور" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black">
+                <select id="finishType" class="border p-2 rounded-lg bg-slate-50 text-[10px] font-black italic transition uppercase font-black font-black italic"><option value="طوب أحمر">طوب أحمر</option><option value="نص تشطيب">نص تشطيب</option><option value="متشطب">متشطب</option></select>
+                <input id="p" oninput="window.autoCalcPrice('total')" placeholder="سعر" type="number" class="border p-2 rounded-lg font-bold bg-blue-50 text-xs italic outline-none focus:border-navy">
+                <input id="up" oninput="window.autoCalcPrice('unit')" placeholder="سعر المتر" type="number" class="border p-2 rounded-lg font-bold bg-green-50 text-xs italic outline-none focus:border-green-600 font-black italic">
+                <button class="bg-navy text-white rounded-lg font-bold h-10 col-span-2 md:col-span-7 shadow-xl hover:bg-slate-800 transition italic uppercase text-xs font-black">إضافة وحدة جديدة</button>
+             </form>
+             
+             <div class="flex justify-end mt-3">
+                 <button type="button" onclick="window.deleteCurrentBuilding()" class="bg-white text-red-500 border border-red-200 px-3 py-2 rounded-xl font-bold shadow-sm hover:bg-red-50 transition italic text-[10px] font-black flex items-center gap-1">
+                     🗑️ حذف العمارة المحددة (احذر)
+                 </button>
+             </div>
+        </div>
+
+        <div class="bg-navy p-4 rounded-2xl mb-4 shadow-xl flex gap-2 items-center italic uppercase font-black">
+            <input id="searchBox" type="text" oninput="renderTable()" placeholder="🔍 ابحث بالمساحة الحالية (تقريب 10م)..." class="flex-1 p-3 rounded-xl outline-none font-bold text-xs text-center shadow-inner bg-white/90">
+            <button id="searchModeBtn" onclick="toggleSearchMode()" class="bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all uppercase">البحث بالمساحة 📐</button>
+            <button id="availableFilterBtn" onclick="toggleAvailableFilter()" class="bg-white text-navy px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase">المتاح فقط</button>
+        </div>
+
+        <div class="bg-white rounded-3xl shadow-xl overflow-x-auto border border-slate-200 font-black italic uppercase font-black">
+            <table class="w-full text-right min-w-[1000px] font-black italic uppercase text-right">
+                <thead class="bg-slate-800 text-white text-[11px] uppercase font-black text-center italic">
+                    <tr> <th class="p-5 font-black uppercase tracking-tighter">#</th> <th class="p-5 font-black uppercase tracking-tighter text-right">كود</th> <th class="p-5 font-black uppercase tracking-tighter text-center">العمارة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">التشطيب</th> <th class="p-5 font-black uppercase tracking-tighter text-center">مساحة/دور</th> <th class="p-5 font-black uppercase tracking-tighter text-center italic">سعر المتر</th> <th class="p-5 font-black uppercase tracking-tighter text-right italic font-black">السعر</th> <th class="p-5 font-black uppercase tracking-tighter text-center">الحالة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">تحكم</th> </tr>
+                </thead>
+                <tbody id="propertiesList" class="font-black italic uppercase font-black"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div id="admin-map-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
+        <div class="modal-content-map text-right">
+            <span class="modal-close" onclick="window.closeAdminModal()">✕</span>
+            <h3 id="admin-modal-title" class="font-bold text-lg text-navy mb-4">➕ إضافة وتثبيت عمارة جديدة على الخريطة</h3>
+            <div class="form-group"><label>اسم العمارة بالكامل:</label><input type="text" id="form-b-name" placeholder="مثال: عمارة أ56"></div>
+            <div class="form-group"><label>الوصف والموقع المتميز:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: ثالث نمرة من البوابة الأولى"></textarea></div>
+            <div class="form-group">
+                <label>🏗️ حالة إنشاء المبنى:</label>
+                <select id="form-b-status" onchange="window.toggleBuildingDeliveryInput(this.value)">
+                    <option value="مبنية">مبنية (جاهزة للاستلام الفوري)</option>
+                    <option value="تحت_الإنشاء">تحت الإنشاء</option>
+                </select>
+            </div>
+            <div class="form-group" id="form-b-delivery-group" style="display:none;">
+                <label>📅 موعد تسليم المشروع:</label><input type="text" id="form-b-delivery" placeholder="مثال: 6 شهور">
+            </div>
+            <div class="form-group">
+                <label>📸 صور الواجهة والمدخل الرئيسي:</label>
+                <input type="file" id="form-b-images" multiple accept="image/*" onchange="window.handleMapBuildingImages(this)">
+                <div id="b-images-preview" class="image-preview"></div>
+            </div>
+            <hr class="my-4">
+            <h4 class="font-bold text-sm text-slate-800 mb-2">🏢 هيكلة الطوابق والمساحات المتوفرة:</h4>
+            <div id="form-map-floors-container"></div>
+            <button class="btn text-xs bg-emerald-600 mt-2 w-full" onclick="window.addMapFloorForm()">➕ إضافة دور جديد</button>
+            <button class="btn btn-success w-full mt-4 py-3 text-base" onclick="window.saveBuildingFromSidebar()">💾 حفظ وتثبيت العمارة نهائياً</button>
+            <button class="btn btn-danger w-full mt-2 py-2 text-xs" id="sidebar-delete-btn" style="display:none;">❌ حذف هذه العمارة كلياً</button>
+        </div>
+    </div>
+
+    <div id="building-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
+        <div class="modal-content-map text-right">
+            <span class="modal-close" onclick="window.closeBuildingModal()">✕</span>
+            <div id="modal-b-gallery" class="gallery"></div>
+            <div class="flex justify-between items-start mt-2">
+                <div>
+                    <h2 id="modal-b-name" class="text-2xl font-black text-navy">اسم العمارة</h2>
+                    <p id="modal-b-loc" class="text-sm text-slate-400 mt-1"></p>
+                </div>
+                <div id="modal-b-status-zone"></div>
+            </div>
+            <div id="modal-b-desc-box" class="my-3"></div>
+            <button id="google-maps-btn" class="btn w-full bg-slate-900 mb-4 text-xs font-bold">🗺️ اتجاهات المعاينة الحية عبر حوجل ماب GPS</button>
+            
+            <div id="floors-section" class="animated-section">
+                <h3 class="text-sm font-bold text-slate-600 mb-3">⚙️ اختر الطابق لمعاينة المساحات المتوفرة:</h3>
+                <div id="modal-floors-list" class="space-y-1"></div>
+            </div>
+            <div id="sizes-section" class="animated-section fade-out">
+                <button class="btn bg-slate-500 text-xs py-1 px-3 mb-3" onclick="window.goBackToFloors()">⬅️ العودة للأدوار</button>
+                <h3 id="selected-floor-title" class="text-sm font-bold text-slate-600 mb-3">المساحات المتوفرة:</h3>
+                <div id="modal-sizes-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="apartment-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
+        <div class="modal-content-map text-right" style="max-width:480px; border-top: 6px solid #1e3a8a;">
+            <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
+            <h2 id="apt-modal-title" class="text-xl font-black text-navy">تفاصيل الشقة الفاخرة</h2>
+            <hr class="my-3">
+            <div id="apt-modal-gallery" class="gallery"></div>
+            <div class="bg-slate-50 p-4 rounded-xl space-y-2 border">
+                <p class="text-sm">👁️ <strong>الإطلالة الكلية:</strong> <span id="apt-modal-view"></span></p>
+                <p class="text-sm">🛏️ <strong>التقسيم الداخلي والغرف:</strong> <span id="apt-modal-rooms"></span></p>
+                <p id="apt-modal-price" class="price-badge mt-2 inline-block"></p>
+                <span id="apt-modal-payment" class="payment-badge block"></span>
+            </div>
+            <button class="btn-premium-viewing" onclick="window.openViewingSchedulerModal()">📅 حجز موعد معاينة حية في الموقع</button>
+            <div class="action-buttons">
+                <a href="tel:01000000000" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصال هاتفي مباشر</a>
+                <a href="https://wa.me/201000000000" id="whatsapp-link-map" target="_blank" class="action-btn btn-whatsapp">💬 استفسار سريع واتساب</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="scheduler-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
+        <div class="modal-content-map text-right" style="max-width: 400px; border-top: 6px solid #d97706;">
+            <span class="modal-close" onclick="window.closeViewingSchedulerModal()">✕</span>
+            <h3 class="text-amber-700 font-bold text-base mb-2">📅 تحديد موعد المقابلة والمعاينة</h3>
+            <div class="form-group"><label>اسم العميل الكريم:</label><input type="text" id="client-name-input" placeholder="اكتب اسمك بالكامل"></div>
+            <div class="form-group"><label>اختر اليوم المناسب:</label><input type="date" id="client-date-input"></div>
+            <div class="form-group"><label>اختر الساعة المفضلة:</label><input type="time" id="client-time-input"></div>
+            <button class="btn w-full py-3 mt-2 font-bold" style="background:#d97706;" onclick="window.sendViewingRequestToSalesWhatsApp()">⚡ إرسال الطلب وحفظ عمولتي بالواتساب</button>
+        </div>
+    </div>
+
+    <div id="sales-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
+        <div class="modal-content-map text-right" style="max-width: 420px;">
+            <span class="modal-close" onclick="window.closeSalesModal()">✕</span>
+            <h3 class="font-bold text-sm mb-3">🔑 إصدار روابط تتبع تيم المبيعات</h3>
+            <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: يوسف محمد"></div>
+            <div class="form-group"><label>رقم اتصال الموبايل:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678"></div>
+            <div class="form-group"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678"></div>
+            <button class="btn btn-success w-full mt-2" onclick="window.generateSalesLink()">🔗 إصدار ونسخ رابط السيلز الذكي</button>
+            <div id="generated-link-box" class="p-2 bg-slate-100 rounded text-xs mt-3 hidden break-all text-left"></div>
+        </div>
+    </div>
+
+    <div id="nameSetupModal" style="display:none;" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4 z-[10005]">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-center font-black">
+            <h3 class="text-navy font-black text-base mb-2">مرحباً بك في السيستم فريد 👋</h3>
+            <p class="text-[11px] text-slate-400 mb-4 font-medium">برجاء إدخال اسمك الثنائي باللغة العربية (ليتم ربطه بتيمك وتقارير مبيعاتك تلقائياً).</p>
+            <input id="setupAgentNameInput" type="text" placeholder="مثال: محمد سعيد" class="w-full border p-3 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black mb-4">
+            <input type="button" onclick="window.saveAgentNameSetup()" value="حفظ والولوغ للمنصة" class="w-full bg-navy text-white p-3 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition cursor-pointer">
+        </div>
+    </div>
+
+    <div id="statusDetailsModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center p-4 z-[10011]">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-right font-black">
+            <h3 class="text-navy font-black mb-4 text-base underline underline-offset-4">توثيق العملية الحالية 📝</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">اسم موظف المبيعات (السيلز)</label>
+                    <input id="salesName" type="text" placeholder="اكتب اسم السيلز..." class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
+                </div>
+                <div id="sharedPercentageWrapper" style="display:none;">
+                    <label class="text-[10px] text-amber-600 block mb-1">نسبة الموظف الأول الكلية في هذه البيعة (%)</label>
+                    <input id="sharedFirstPct" type="number" value="50" min="0" max="100" class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-orange-50 focus:border-navy font-black">
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400 block mb-1">اسم المشتري (العميل)</label>
+                    <input id="buyerName" type="text" placeholder="اكتب اسم العميل..." class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
+                </div>
+                <div id="commissionSourceWrapper" style="display:none;">
+                    <label class="text-[10px] text-navy block mb-1">مصدر البيعة لتوزيع العمولات 💰</label>
+                    <select id="commissionSource" class="w-full border p-2 rounded-xl text-center text-xs bg-slate-50 font-black outline-none focus:border-navy">
+                        <option value="personal">بيرسونال (Personal)</option>
+                        <option value="company">كومباني (Company)</option>
+                        <option value="indirect">إن دايركت (Indirect)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-orange-500 block mb-1">تاريخ توثيق العملية (لإدخال شهور سابقة)</label>
+                    <input id="customStatusDate" type="month" class="w-full border p-2 rounded-xl text-center text-xs outline-none bg-slate-50 focus:border-navy font-black">
+                </div>
+            </div>
+            <div class="flex gap-2 mt-5">
+                <button onclick="saveStatusDetails()" class="flex-1 bg-navy text-white p-2.5 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition">حفظ التوثيق</button>
+                <button onclick="document.getElementById('statusDetailsModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-2.5 rounded-xl font-black text-xs hover:bg-slate-200 transition">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminReportModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10004]">
+        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col modal-animate text-right font-black">
+            <div class="p-5 bg-navy text-white flex justify-between items-center shadow-lg">
+                <h2 class="text-base font-black">تقارير المبيعات والحجوزات الشاملة 📊</h2>
+                <div class="flex items-center gap-3">
+                    <button onclick="window.toggleLeaderboardModal()" class="no-print bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">لوحة الصدارة 🏆</button>
+                    <button onclick="window.printReport()" class="no-print bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">طباعة التقرير الفوري 🖨️</button>
+                    <button onclick="window.addPreviousMonthManual()" class="no-print bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded-xl font-bold transition">إضافة شهر سابق 📅</button>
+                    <button onclick="toggleAdminReportModal()" class="no-print text-2xl font-bold hover:text-red-400 transition">×</button>
+                </div>
+            </div>
+            <div class="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-4">
+                <div class="no-print bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <span class="text-[11px] text-navy font-black shrink-0">الأرشيف 📁:</span>
+                        <select id="archiveYearSelect" onchange="window.handleArchiveYearChange(this)" class="border p-2 rounded-xl text-xs font-bold bg-slate-50 focus:border-navy outline-none cursor-pointer w-full md:w-44"></select>
+                    </div>
+                    <div id="checkboxesWrapper" class="flex items-center gap-2 w-full md:w-auto overflow-x-auto py-1 scrollbar-hide">
+                        <span class="text-[11px] text-navy font-black shrink-0">شهور السنة الحالية 📅:</span>
+                        <div id="monthsCheckboxesContainer" class="flex items-center gap-1.5"></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-green-600 shadow-sm text-center">
+                        <p id="soldCardTitle" class="text-[10px] text-slate-400 font-black">المباع</p>
+                        <p id="reportSoldCount" class="text-xl font-black text-green-600 mt-1 eng-num">0</p>
+                    </div>
+                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-amber-500 shadow-sm text-center">
+                        <p id="reservedCardTitle" class="text-[10px] text-slate-400 font-black">المحجوز</p>
+                        <p id="reportReservedCount" class="text-xl font-black text-amber-500 mt-1 eng-num">0</p>
+                    </div>
+                    <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-blue-800 shadow-sm text-center bg-blue-50/20">
+                        <p class="text-[10px] text-blue-900 font-black">إجمالي مباع السنة الحالية الكلي</p>
+                        <p id="reportAnnualSoldCount" class="text-xl font-black text-blue-800 mt-1 eng-num">0</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-2xl border overflow-x-auto shadow-sm">
+                    <table class="w-full min-w-[600px]">
+                        <thead class="bg-slate-100 border-b text-center text-[10px] text-slate-500 font-black uppercase">
+                            <tr>
+                                <th class="p-3">كود الوحدة و السعر</th>
+                                <th class="p-3">العمارة</th>
+                                <th class="p-3">الحالة والمصدر</th>
+                                <th class="p-3">اسم السيلز والعمولات</th>
+                                <th class="p-3">اسم المشتري</th>
+                                <th class="p-3">التاريخ</th>
+                                <th class="p-3 no-print">إجراء الأدمن</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportItemsList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminPriceModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10010]">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy text-right font-black modal-animate">
+            <h3 class="text-navy font-black mb-4 text-sm underline underline-offset-4">تعديل السعر الجديد 💰</h3>
+            <input id="adminPriceInput" type="text" class="w-full border p-4 rounded-xl text-center text-xl bg-slate-50 font-black mb-4 outline-none focus:border-navy eng-num" placeholder="0">
+            <div class="flex gap-2">
+                <button onclick="window.savePriceByAdmin()" class="flex-1 bg-navy text-white p-3 rounded-xl font-black text-xs">حفظ السعر</button>
+                <button onclick="document.getElementById('adminPriceModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-3 rounded-xl font-black text-xs">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="editTeamModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10008]">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy text-right font-black modal-animate">
+            <h3 class="text-navy font-black mb-4 text-sm underline underline-offset-4">تعديل تيم العملية 👥</h3>
+            <select id="teamSelectionList" class="w-full border p-3 rounded-xl text-center text-xs bg-slate-50 font-black mb-4"></select>
+            <div id="teamSalesSelectContainer" class="mb-4" style="display:none;">
+                <label class="text-[10px] text-slate-400 block mb-1">اختر الموظف لتحديد التيم:</label>
+                <select id="teamSalesSelect" class="w-full border p-3 rounded-xl text-center text-xs bg-slate-50 font-black"></select>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="window.savePropTeamChange()" class="flex-1 bg-navy text-white p-2.5 rounded-xl font-black text-xs">حفظ التغيير</button>
+                <button onclick="document.getElementById('editTeamModal').style.display='none'" class="flex-1 bg-slate-100 text-slate-500 p-2.5 rounded-xl font-black text-xs">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="leaderboardModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10006]">
+        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md border-t-8 border-navy p-6 text-right font-black modal-animate relative">
+            <button onclick="window.toggleLeaderboardModal()" class="absolute top-3 left-4 text-slate-300 hover:text-red-500 font-bold text-xl transition">×</button>
+            <h3 class="text-navy font-black text-base border-b pb-2 mb-4">🏆 لوحة الصدارة بحجم مبيعات الشهر (كاش)</h3>
+            <div class="space-y-4">
+                <div class="space-y-2">
+                    <p class="text-xs font-black text-slate-800">⭐ أفضل 3 مبيعات مبيعات وتكافؤ العقود:</p>
+                    <div id="topSalesOutput" class="space-y-1.5"></div>
+                </div>
+                <div class="space-y-2">
+                    <p class="text-xs font-black text-slate-800">🏢 التيم المتصدر بمبيعات أعضائه الكلية:</p>
+                    <div id="topTeamOutput"></div>
+                </div>
+            </div>
+            <button onclick="window.toggleLeaderboardModal()" class="w-full bg-navy text-white text-xs font-bold py-2.5 mt-5 rounded-xl shadow-md transition hover:bg-slate-800">إغلاق لوحة الصدارة</button>
+        </div>
+    </div>
+
+    <div id="cleanLeaderboardPromptModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10007]">
+        <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm border-t-8 border-navy modal-animate text-right p-6 font-black">
+            <h3 class="text-navy font-black text-sm mb-3 border-b pb-2 flex items-center gap-1.5">⚙️ ضبط نسب البيع المشترك للوحدة</h3>
+            <p class="text-xs text-slate-500 mb-4 font-semibold leading-relaxed">
+                الوحدة كود (<span id="sharedUnitCodeDisplay" class="text-blue-800 font-black"></span>) مشتركة بين 
+                <span id="sharedFirstAgentName" class="text-navy font-black"></span> و 
+                <span id="sharedSecondAgentName" class="text-navy font-black"></span>.
+            </p>
+            <div class="mb-4">
+                <label class="text-[11px] text-slate-400 block mb-1.5 font-bold">
+                    برجاء إدخال نسبة [ <span id="promptAgentLabelName" class="text-blue-800 font-black"></span> ] الكلية (%):
+                </label>
+                <input id="cleanSharedPctInput" type="number" value="50" min="0" max="100" class="w-full border p-3 rounded-xl text-center eng-num font-black text-base outline-none bg-slate-50 focus:border-navy">
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button onclick="window.saveCleanSharedPercentage()" class="flex-1 bg-navy text-white p-3 rounded-xl font-black shadow-md text-xs hover:bg-slate-800 transition">حفظ النسبة وتحديث التقرير</button>
+                <button onclick="document.getElementById('cleanLeaderboardPromptModal').style.display='none'" class="bg-slate-100 text-slate-500 px-4 py-3 rounded-xl text-xs font-bold transition">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10001] font-black uppercase italic">
+        <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-[340px] relative border-t-8 border-navy p-6 text-right font-black">
+            <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black">×</button>
+            <h3 class="text-navy font-black mb-4 text-lg text-right italic underline underline-offset-4 font-black">حساب القسط: <span id="m_code"></span></h3>
+            <div class="space-y-4 font-black italic text-right">
+                <div>
+                    <label class="text-[10px] text-slate-400 block mb-1 pr-2 uppercase font-black">إجمالي السعر</label>
+                    <input id="m_total" type="text" oninput="window.runCalc('price')" class="w-full bg-slate-50 border p-2 rounded-lg eng-num font-extrabold text-base outline-none border-slate-200">
+                </div>
+                <div class="border-b pb-2">
+                    <label class="text-[10px] text-navy block mb-1 pr-2 font-black">المقدم</label>
+                    <div class="grid grid-cols-3 gap-2 w-full">
+                        <input id="m_down_pct" placeholder="%" type="text" oninput="window.runCalc('pct_input')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
+                        <input id="m_down" placeholder="كاش" type="text" oninput="window.runCalc('amount_input')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
+                    </div>
+                </div>
+                <div class="border-b pb-2">
+                    <label class="text-[10px] text-red-500 block mb-1 pr-2 font-black">الدفعات % <span id="res_pct_val" class="text-[12px] font-extrabold text-navy"></span></label>
+                    <div class="grid grid-cols-3 gap-2 w-full">
+                        <input id="m_d_pct" placeholder="%" type="text" oninput="window.runCalc('d_pct')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
+                        <input id="m_d_amount" placeholder="كاش" type="text" oninput="window.runCalc('d_amount')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1 pr-2 font-black uppercase">عدد الشهور الكلي</label>
+                    <input id="m_months" type="text" oninput="window.runCalc('price')" class="w-full bg-gray-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
+                </div>
+            </div>
+            <div class="mt-6 bg-slate-50 border border-slate-200 p-4 rounded-3xl text-center font-black relative">
+                <label class="text-[10px] text-slate-400 block mb-1 font-black">القسط الشهري (اضغط هنا للتعديل وحساب الشهور):</label>
+                <div class="flex items-center justify-center gap-1 border-b border-slate-300 focus-within:border-navy py-1 mx-4">
+                    <span class="text-xs font-bold text-slate-400 font-mono">EGP</span>
+                    <input id="res_monthly_input" type="text" oninput="window.runCalc('output_edit')" class="bg-transparent text-blue-900 eng-num font-extrabold text-2xl w-full text-center outline-none" placeholder="0">
+                </div>
+            </div>
+            <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-navy text-white p-4 mt-4 rounded-2xl font-black shadow-lg uppercase text-xs italic transition font-black">إغلاق</button>
+        </div>
+    </div>
+
+    <div id="resaleMenu" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[10000] flex items-center justify-center p-4">
+        <div class="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col font-black italic uppercase">
+            <div class="p-6 bg-navy text-white flex justify-between items-center shadow-lg font-black italic"><h2 class="text-3xl font-black italic uppercase text-right">وحدات الـ RESALE</h2><button onclick="toggleResaleMenu()" class="text-4xl font-bold transition hover:rotate-90 font-black">×</button></div>
+            <div class="p-6 overflow-y-auto flex-1 bg-slate-50 italic">
+                <div id="adminResaleAdd" class="admin-only-feature hidden mb-8 p-6 bg-white border-2 border-dashed border-slate-300 rounded-[2.5rem] font-black text-right shadow-sm italic uppercase">
+                    <form onsubmit="window.addResale(event)" class="grid grid-cols-2 md:grid-cols-5 gap-3 font-black text-right italic uppercase">
+                        <input id="rc" placeholder="كود" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic" required>
+                        <input id="ra" placeholder="منطقة" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic" required>
+                        <input id="rs" placeholder="مساحة" class="border p-3 rounded-xl text-xs bg-slate-50 font-black outline-none focus:border-navy italic">
+                        <input id="rp" placeholder="سعر" class="border p-3 rounded-xl bg-blue-50 font-black outline-none focus:border-navy">
+                        <select id="rf" class="border p-3 rounded-xl text-xs font-black bg-slate-50 italic transition uppercase"><option value="طوب أحمر">طوب أحمر</option><option value="متشطب">متشطب</option></select>
+                        <button type="submit" class="col-span-2 md:col-span-5 bg-navy text-white rounded-xl p-3 font-bold text-sm shadow-lg hover:bg-slate-800 transition">حفظ الوحدة</button>
+                    </form>
+                </div>
+                <div id="resaleItemsList" class="text-right italic uppercase"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="finishEditModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[10002] items-center justify-center p-4 text-center font-black italic uppercase">
+        <div class="bg-white p-8 rounded-[3rem] shadow-2xl w-full max-w-xs border-t-8 border-navy font-black italic">
+            <h3 class="font-black mb-6 text-navy text-lg uppercase text-center italic underline">تغيير التشطيب:</h3>
+            <div class="grid gap-3 font-black italic transition uppercase">
+                <button onclick="saveFinishChange('طوب أحمر')" class="bg-slate-100 p-4 rounded-2xl text-slate-700 transition font-black hover:bg-slate-200 font-black italic">طوب أحمر</button>
+                <button onclick="saveFinishChange('نص تشطيب')" class="bg-slate-100 p-4 rounded-2xl text-slate-700 transition font-black hover:bg-slate-200 font-black italic">نص تشطيب</button>
+                <button onclick="saveFinishChange('متشطب')" class="bg-navy text-white p-4 rounded-2xl font-black shadow-md transition italic">متشطب</button>
+            </div>
+            <button onclick="document.getElementById('finishEditModal').style.display='none'" class="mt-6 text-slate-400 font-black text-[10px] uppercase underline text-center italic tracking-widest transition">إلغاء</button>
+        </div>
+    </div>
+
+    <div id="lightbox-overlay" onclick="window.closeLightbox()">
+        <span class="lightbox-close" onclick="window.closeLightbox()">×</span>
+        <img id="lightbox-img" src="" alt="معاينة دقيقة">
+    </div>
 </body>
 </html>
