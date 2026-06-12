@@ -4,11 +4,10 @@
     <meta charset="UTF-8">
     <title>Inventory عقاري اليوم</title>
     <link class="program-favicon" rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/home.png">
-    <link class="apple-touch-icon" href="https://img.icons8.com/fluency/512/home.png">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/512/home.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root { --main-blue: #1e3a8a; }
         .edit-animate { transition: all 0.2s ease; cursor: pointer; }
@@ -41,24 +40,6 @@
             #adminReportModal { position: absolute; left: 0; top: 0; width: 100%; max-height: none !important; overflow: visible !important; box-shadow: none !important; }
             .no-print { display: none !important; }
         }
-
-        /* ستايلات الخريطة والنوافذ العقارية المدمجة */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); display: flex; justify-content: center; align-items: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; padding: 10px; }
-        .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal-content-map { background: white; width: 100%; max-width: 680px; max-height: 85vh; border-radius: 20px; padding: 25px; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); position: relative; }
-        .gallery { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
-        .gallery img { width: 110px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid #e2e8f0; }
-        .btn-premium-viewing { width: 100%; padding: 14px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 15px; box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3); display: flex; justify-content: center; align-items: center; gap: 8px; }
-        .btn-premium-viewing:hover { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); transform: translateY(-1px); }
-        .price-badge { background: #dcfce7; color: #15803d; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 16px; }
-        .payment-badge { background: #f1f5f9; color: #334155; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 13px; margin-top: 6px; display: inline-block; }
-        .status-ready { display: inline-block; background: #dcfce7; color: #166534; padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: bold; }
-        .status-construction { display: inline-block; background: #ffedd5; color: #9a3412; padding: 4px 12px; border-radius: 50px; font-size: 12px; font-weight: bold; }
-        #lightbox-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 3000; display: none; }
-        #lightbox-img { max-width: 95%; max-height: 85vh; border-radius: 12px; }
-        .lightbox-close { position: absolute; top: 20px; left: 20px; color: white; font-size: 35px; cursor: pointer; }
-        .size-card { background: #ffffff; border: 2px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .size-card:hover { border-color: #10b981; background: #f0fdf4; }
     </style>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -134,8 +115,6 @@
                 document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
                 initAppListeners();
-                // تشغيل الخريطة فور نجاح تسجيل الدخول
-                setTimeout(() => { window.initMapSystem(); }, 500);
             } else {
                 document.getElementById('loginSection').classList.remove('hidden');
                 document.getElementById('appSection').classList.add('hidden');
@@ -147,7 +126,6 @@
             onSnapshot(collection(db, 'properties'), (snap) => { 
                 dataStore = snap.docs.map(d => ({id: d.id, ...d.data()})); 
                 renderTable(); 
-                window.updateMapMarkers(); // تحديث دبابيس الخريطة فورياً مع أي تغيير بالداتا
                 if(currentUserRole === 'admin' && document.getElementById('monthsCheckboxesContainer')) {
                     window.populateMonthFilters();
                     window.updateReportData();
@@ -314,22 +292,18 @@
                     <td onclick="startEditFinish('${item.id}')" class="p-4 text-[10px] text-slate-400 italic edit-animate">${item.finish || 'طوب أحمر'}</td>
                     <td class="p-4 text-slate-600 font-black">${item.size}م / د ${item.floor || '-'}</td>
                     <td class="p-4 text-green-700 font-bold text-[10px]">${Number(item.unitPrice || 0).toLocaleString('en-US')}ج</td>
-                    <td onclick="window.openCalc(${item.price}, '${item.code}')" class="p-4 font-black text-blue-800 cursor-pointer underline italic">${Number(item.price).toLocaleString('en-US')}ج</td>
+                    <td onclick="window.openCalcById('${item.id}')" class="p-4 font-black text-blue-800 cursor-pointer underline italic">${Number(item.price).toLocaleString('en-US')}ج</td>
                     <td class="p-4"><span class="px-3 py-1 rounded-full text-[10px] ${statusCls}">${displayStatus}</span></td>
                     <td class="p-4 flex items-center justify-center gap-2">
                         ${currentUserRole === 'admin' ? `<button onclick="openEditPrice('${item.id}', ${item.price}, '${item.code}')">⚙️</button>
                         <button onclick="transferToResale('${item.id}')" title="تحويل لريسيل">🔄</button>
                         <button onclick="deleteProperty('${item.id}', '${item.code}')" class="text-red-500">🗑️</button>
                         <select onchange="window.handleStatusChangeTrigger('${item.id}', this.value, '${item.code}')" class="border rounded text-[8px] p-1 font-black italic"><option disabled selected>حالة</option><option value="متاح">متاح</option><option value="تم الحجز">تم الحجز</option><option value="تم البيع">تم البيع</option></select>` : ''}
-                        <button onclick="window.openCalc(${item.price}, '${item.code}')" class="bg-navy text-white px-2 py-1 rounded text-[10px] shadow-md uppercase italic font-black">احسب</button>
+                        <button onclick="window.openCalcById('${item.id}')" class="bg-navy text-white px-2 py-1 rounded text-[10px] shadow-md uppercase italic font-black">احسب</button>
                     </td></tr>`;
             });
             tbody.innerHTML = htmlBuffer;
             renderTabs();
-            // توجيه الخريطة الذكي عند الضغط على أي تاب
-            if(window.mapInstance && activeTab !== 'الكل' && activeTab !== 'التجاري العام 🏢') {
-                window.focusMapOnBuilding(activeTab);
-            }
         };
 
         window.saveAgentNameSetup = async () => {
@@ -595,7 +569,7 @@
                             <span class="block text-[10px] text-indigo-700">قائد: ${formatMoney(p.tlComm || 0)}ج</span>
                          </div>` : '-';
 
-                    const displayFullPrice = p.price ? `${Number(p.price).toLocaleString('en-US')}ج` : 'غير محدد';
+                    const displayFullPrice = p.price ? `${Number(p.price).toLocaleString('en-US')}ج` : 'غير مححدد';
 
                     let statusAction = '';
                     if (p.status === 'تم الحجز') {
@@ -719,7 +693,7 @@
             
             if (topSalesContainer) {
                 let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
-                                                                    .sort((a, b) => b.volume - a.volume).slice(0, 3);
+                                                            .sort((a, b) => b.volume - a.volume).slice(0, 3);
                 
                 if (sortedSales.length === 0) {
                     topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
@@ -736,7 +710,7 @@
 
             if (topTeamContainer) {
                 let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
-                                                                    .sort((a, b) => b.volume - a.volume);
+                                                            .sort((a, b) => b.volume - a.volume);
                 
                 if (sortedTeams.length === 0) {
                     topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
@@ -767,7 +741,7 @@
 
         window.deleteTeam = async (id, name) => {
             if(confirm(`حذف تيم "${name}" نهائياً؟`)) {
-                await deleteDoc(doc(db, 'teams', id));
+                await deleteDoc(doc(doc(db, 'teams', id)));
                 if(currentActiveReportTeamId === id) currentActiveReportTeamId = "";
                 window.addLog(`حذف تيم: ${name}`);
             }
@@ -895,7 +869,8 @@
                     const p = unformatMoney(cleanToEngNum(i.price || i.Price || i['السعر'] || i['price '] || 0));
                     const s = unformatMoney(cleanToEngNum(i.size || i.Size || i['المساحة'] || i['size '] || 0));
                     const up = unformatMoney(cleanToEngNum(i.unitPrice || i.UnitPrice || i['سعر المتر'] || i['unitPrice '] || 0));
-                    await addDoc(collection(db, 'properties'), { code: String(i.code||i.Code||i['الكود']||''), area: String(i.area||i.Area||i['العمارة']||''), size: s, floor: String(i.floor||i.Floor||i['الدور']||'-'), price: p, unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0), finish: String(i.finish||i.Finish||i['التشطيب']||'طوب أحمر'), status: 'متاح', time: serverTimestamp(), sharedFirstPct: 50 });
+                    const mapLink = String(i.mapLink || i['اللوكيشن'] || i['الموقع'] || '');
+                    await addDoc(collection(db, 'properties'), { code: String(i.code||i.Code||i['الكود']||''), area: String(i.area||i.Area||i['العمارة']||''), size: s, floor: String(i.floor||i.Floor||i['الدور']||'-'), price: p, unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0), finish: String(i.finish||i.Finish||i['التشطيب']||'طوب أحمر'), mapLink: mapLink, status: 'متاح', time: serverTimestamp(), sharedFirstPct: 50 });
                 }
                 alert("تم الاستيراد بنجاح");
                 location.reload();
@@ -912,6 +887,7 @@
             const finish = document.getElementById('finishType').value;
             const price = Number(document.getElementById('p').value) || 0;
             const unitPrice = Number(document.getElementById('up').value) || 0;
+            const mapLink = document.getElementById('m_link').value.trim();
 
             if(!code || !area || !size) { alert("أدخل بيانات الكود، العمارة، والمساحة كحد أدنى!"); return; }
 
@@ -924,6 +900,7 @@
                     finish: finish,
                     price: price,
                     unitPrice: unitPrice > 0 ? unitPrice : (size > 0 ? Math.round(price / size) : 0),
+                    mapLink: mapLink,
                     status: 'متاح',
                     time: serverTimestamp(),
                     sharedFirstPct: 50
@@ -1018,9 +995,7 @@
             }
         };
 
-        window.printReport = () => {
-            window.print();
-        };
+        window.printReport = () => { window.print(); };
 
         window.runCalc = (trigger) => {
             const totalInput = document.getElementById('m_total');
@@ -1082,7 +1057,9 @@
         };
 
         window.renderTabs = () => { const container = document.getElementById('buildingTabs'); if(!container) return; const allB = [...new Set(dataStore.map(i => i.area))]; let sorted = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!sorted.includes(b)) sorted.push(b); }); let html = `<button onclick="setTab('الكل')" class="tab-btn ${activeTab === 'الكل' ? 'active' : ''}">الكل</button>`; html += sorted.map((b, idx) => `<button draggable="true" ondragstart="window.tabDragStart(event, ${idx})" ondragover="event.preventDefault()" ondrop="window.tabDrop(event, ${idx})" onclick="setTab('${b}')" class="tab-btn ${activeTab === b ? 'active' : ''}">${b}</button>`).join(''); html += `<button onclick="setTab('التجاري العام 🏢')" class="tab-btn ${activeTab === 'التجاري العام 🏢' ? 'active' : ''}" style="${activeTab === 'التجاري العام 🏢' ? '' : 'background:#334155;color:white;'}">التجاري العام 🏢</button>`; container.innerHTML = html; };
+        
         window.openCalc = (p, c) => { 
+            window.currentCalcUnitData = { code: c, area: 'وحدة عامة', size: '-', floor: '-', finish: '-', mapLink: '' };
             document.getElementById('calcModal').style.display='flex'; 
             document.getElementById('m_code').innerText=c; 
             document.getElementById('m_total').value = formatMoney(p); 
@@ -1094,6 +1071,64 @@
             document.getElementById('res_monthly_input').value='';
             window.runCalc('price'); 
         };
+
+        window.openCalcById = (id) => {
+            const unit = dataStore.find(p => p.id === id);
+            if (!unit) return;
+            window.currentCalcUnitData = unit; // بنحفظ البيانات هنا علشان نستخدمها في توليد العرض للعميل تلقائياً
+            document.getElementById('calcModal').style.display='flex'; 
+            document.getElementById('m_code').innerText=unit.code; 
+            document.getElementById('m_total').value = formatMoney(unit.price); 
+            document.getElementById('m_down').value='';
+            document.getElementById('m_down_pct').value='';
+            document.getElementById('m_d_amount').value='';
+            document.getElementById('m_d_pct').value='';
+            document.getElementById('m_months').value='';
+            document.getElementById('res_monthly_input').value='';
+            window.runCalc('price');
+        };
+
+        window.generateClientOffer = () => {
+            const unit = window.currentCalcUnitData;
+            if(!unit) return;
+
+            const total = document.getElementById('m_total').value;
+            const down = document.getElementById('m_down').value || '0';
+            const downPct = document.getElementById('m_down_pct').value || '0';
+            const dAmount = document.getElementById('m_d_amount').value || '0';
+            const months = document.getElementById('m_months').value || '0';
+            const monthly = document.getElementById('res_monthly_input').value || '0';
+
+            let offerText = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة:\n\n`;
+            offerText += `📌 الكود: ${unit.code}\n`;
+            offerText += `📍 العمارة/المنطقة: ${unit.area}\n`;
+            offerText += `📐 المساحة: ${unit.size} متر\n`;
+            offerText += `🏢 الدور: ${unit.floor || '-'}\n`;
+            offerText += `✨ التشطيب: ${unit.finish || 'طوب أحمر'}\n\n`;
+            offerText += `💰 السعر الإجمالي: ${total} جنيهاً\n`;
+            offerText += `💵 المقدم: ${down} ج (${downPct}%)\n`;
+            if (unformatMoney(dAmount) > 0) offerText += `📉 إجمالي الدفعات الإضافية: ${dAmount} ج\n`;
+            offerText += `📅 نظام السداد: قسط شهري بقيمة (${monthly} ج) على ${months} شهر.\n\n`;
+            
+            if (unit.mapLink) {
+                offerText += `📍 موقع العمارة على جوجل ماب بدقة:\n${unit.mapLink}\n\n`;
+            } else {
+                offerText += `📍 موقع حدائق الأهرام (سيتم إرسال اللوكيشن الدقيق للعمارة لاحقاً)\n`;
+            }
+            offerText += `شركة عقاري اليوم تسعد بخدمتكم دائماً 🏢✨`;
+
+            document.getElementById('offerTextArea').value = offerText;
+            document.getElementById('offerResultModal').style.display = 'flex';
+        };
+
+        window.copyOfferText = () => {
+            const textarea = document.getElementById('offerTextArea');
+            textarea.select();
+            document.execCommand('copy');
+            alert('تم نسخ العرض العقاري المتكامل بنجاح! جاهز للإرسال على الواتساب 📲');
+            document.getElementById('offerResultModal').style.display = 'none';
+        };
+
         window.setTab = (t) => { activeTab = t; showCommercialOnly = false; renderTable(); };
         window.toggleCommView = () => { showCommercialOnly = !showCommercialOnly; document.getElementById('commToggleBtn').innerText = showCommercialOnly ? "🏠 عرض السكني" : "🏢 عرض التجاري"; renderTable(); };
         window.toggleNotif = () => { document.getElementById('notifPanel').classList.toggle('hidden'); unreadCount = 0; document.getElementById('notifBadge').classList.add('hidden'); };
@@ -1132,460 +1167,6 @@
                 window.setTab('الكل'); 
             }
         };
-
-        // 🗺️ ----------------------------------------------------
-        // سكريبت وهندسة الخرائط التفاعلية المدمجة بنظام النوافذ الفاخرة
-        // ----------------------------------------------------
-        window.mapInstance = null;
-        window.mapMarkersMap = {};
-        window.currentTempCoords = null;
-        window.tempMarker = null;
-        window.isEditingExistingMap = false;
-        window.editingBuildingIdMap = null;
-        window.currentSidebarBuildingImages = [];
-        window.currentSidebarAptImagesMap = {};
-        window.currentActiveApartmentData = null;
-
-        // دبل كليك سري على كلمة Inventory يفتح وضع الأدمن السري للخريطة
-        document.getElementById('loginSection').addEventListener('click', () => submitAction = 'login'); // أمان للقديم
-        setTimeout(() => {
-            const h1Trigger = document.querySelector('h1');
-            if(h1Trigger) {
-                h1Trigger.style.cursor = 'pointer';
-                h1Trigger.addEventListener('dblclick', () => {
-                    let password = prompt("أدخل الرقم السري لتفعيل إضافة العماير والتثبيت على الخريطة:");
-                    if(password === "1234") {
-                        document.getElementById('admin-indicator').style.display = 'inline-block';
-                        alert("وضع الخرائط المطور جاهز! اضغط في مكان فارغ على الخريطة لرفع العمارة وعمل لَوك للوكليشن.");
-                    } else if(password !== null) {
-                        alert("الرمز السري خطأ!");
-                    }
-                });
-            }
-        }, 1500);
-
-        window.initMapSystem = () => {
-            if(window.mapInstance) return;
-            // إحداثيات حدائق الأهرام البوابة الأولى كمركز افتراضي فخم
-            window.mapInstance = L.map('map-embedded').setView([29.9730, 31.1150], 16);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(window.mapInstance);
-
-            // عند الضغط على الخريطة في وضع الأدمن المطور
-            window.mapInstance.on('click', function(e) {
-                if(document.getElementById('admin-indicator').style.display !== 'inline-block') return;
-                window.isEditingExistingMap = false;
-                window.currentTempCoords = [e.latlng.lat, e.latlng.lng];
-                
-                if (window.tempMarker) window.mapInstance.removeLayer(window.tempMarker);
-                window.tempMarker = L.marker(window.currentTempCoords).addTo(window.mapInstance);
-
-                // تصفير وفتح المودال المنبثق الفخم للإدخال
-                document.getElementById('form-b-name').value = '';
-                document.getElementById('form-b-desc').value = '';
-                document.getElementById('form-b-status').value = 'مبنية';
-                document.getElementById('form-b-delivery').value = '';
-                document.getElementById('form-b-delivery-group').style.display = 'none';
-                document.getElementById('b-images-preview').innerHTML = '';
-                document.getElementById('form-map-floors-container').innerHTML = '';
-                window.currentSidebarBuildingImages = [];
-                window.currentSidebarAptImagesMap = {};
-
-                document.getElementById('admin-map-modal').classList.add('active');
-            });
-        };
-
-        // تحديث الدبابيس ديناميكياً من LocalStorage أو داتا الفايربيس العقارية المدمجة
-        window.updateMapMarkers = () => {
-            if(!window.mapInstance) return;
-            // مسح الماركرز القديمة
-            for(let key in window.mapMarkersMap) {
-                window.mapInstance.removeLayer(window.mapMarkersMap[key]);
-            }
-            window.mapMarkersMap = {};
-
-            // قراءة الخرائط المحفوظة بـ كاش المتصفح المطور
-            let localBuildings = localStorage.getItem('map_buildings_integrated');
-            let mapData = localBuildings ? JSON.parse(localBuildings) : [];
-
-            mapData.forEach(b => {
-                const marker = L.marker(b.coords).addTo(window.mapInstance);
-                marker.bindTooltip(b.name, { permanent: true, direction: 'top' });
-                window.mapMarkersMap[b.name] = marker;
-
-                marker.on('click', function() {
-                    // لو أدمن مسجل باسوورد ومفعل التعديل
-                    if(document.getElementById('admin-indicator').style.display === 'inline-block') {
-                        window.openAdminEditMapModal(b);
-                    } else {
-                        window.openClientBuildingModal(b);
-                    }
-                });
-            });
-        };
-
-        window.focusMapOnBuilding = (name) => {
-            if(window.mapMarkersMap[name]) {
-                const marker = window.mapMarkersMap[name];
-                window.mapInstance.setView(marker.getLatLng(), 18);
-                // محاكاة الضغط لفتح التفاصيل تلقائياً للعميل
-                marker.fire('click');
-            }
-        };
-
-        window.toggleBuildingDeliveryInput = (val) => {
-            document.getElementById('form-b-delivery-group').style.display = val === 'تحت_الإنشاء' ? 'block' : 'none';
-        };
-
-        let mapFloorCount = 0;
-        window.addMapFloorForm = () => {
-            mapFloorCount++;
-            const container = document.getElementById('form-map-floors-container');
-            const floorId = `map-floor-${mapFloorCount}`;
-            const html = `
-                <div class="nested-box text-right" id="${floorId}">
-                    <button class="delete-icon-btn" onclick="document.getElementById('${floorId}').remove()">❌ حذف الدور</button>
-                    <label class="font-bold text-xs text-slate-600">الدور:</label><input type="text" class="floor-name-input border p-1 rounded w-1/2 text-xs" placeholder="مثال: الدور الثاني">
-                    <div class="apts-box mt-2"></div>
-                    <button class="btn text-[10px] py-1 px-2 mt-1" style="background:#0284c7;" onclick="window.addMapAptForm('${floorId}')">➕ شقة في الدور</button>
-                </div>`;
-            container.insertAdjacentHTML('beforeend', html);
-            window.addMapAptForm(floorId);
-        };
-
-        let mapAptCount = 0;
-        window.addMapAptForm = (floorId) => {
-            mapAptCount++;
-            const box = document.getElementById(floorId).querySelector('.apts-box');
-            const aptUid = `map-uid-${mapAptCount}`;
-            window.currentSidebarAptImagesMap[aptUid] = [];
-            const html = `
-                <div class="apt-edit-box" id="${aptUid}">
-                    <button class="delete-icon-btn" style="top:2px; left:2px;" onclick="this.parentElement.remove()">×</button>
-                    <input type="text" class="apt-size w-full border p-1 rounded text-xs" placeholder="المساحة: 125م">
-                    <input type="text" class="apt-price w-full border p-1 rounded text-xs mt-1" placeholder="السعر الإجمالي">
-                    <input type="text" class="apt-view w-full border p-1 rounded text-xs mt-1" placeholder="الإطلالة: واجهة">
-                    <input type="text" class="apt-rooms w-full border p-1 rounded text-xs mt-1" placeholder="التقسيم الداخلي">
-                    <input type="text" class="apt-payment w-full border p-1 rounded text-xs mt-1" placeholder="نظام السداد: قسط">
-                    <input type="file" multiple accept="image/*" onchange="window.saveMapAptImages(this, '${aptUid}')" class="text-[10px] mt-1 w-full">
-                    <div class="image-preview"></div>
-                </div>`;
-            box.insertAdjacentHTML('beforeend', html);
-        };
-
-        window.handleMapBuildingImages = (input) => {
-            if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader(); r.onload = (e) => {
-                        window.currentSidebarBuildingImages.push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result;
-                        document.getElementById('b-images-preview').appendChild(img);
-                    }; r.readAsDataURL(f);
-                });
-            }
-        };
-
-        window.saveMapAptImages = (input, uid) => {
-            const preview = input.nextElementSibling;
-            if(input.files) {
-                Array.from(input.files).forEach(f => {
-                    const r = new FileReader(); r.onload = (e) => {
-                        if(!window.currentSidebarAptImagesMap[uid]) window.currentSidebarAptImagesMap[uid] = [];
-                        window.currentSidebarAptImagesMap[uid].push(e.target.result);
-                        const img = document.createElement('img'); img.src = e.target.result; preview.appendChild(img);
-                    }; r.readAsDataURL(f);
-                });
-            }
-        };
-
-        window.saveBuildingFromSidebar = () => {
-            const name = document.getElementById('form-b-name').value.trim();
-            const desc = document.getElementById('form-b-desc').value.trim();
-            const bStatus = document.getElementById('form-b-status').value;
-            const bDelivery = document.getElementById('form-b-delivery').value.trim();
-            if(!name) return alert("اكتب اسم العمارة للتثبيت!");
-
-            const apartments = [];
-            document.querySelectorAll('.nested-box').forEach(fb => {
-                const fName = fb.querySelector('.floor-name-input').value || "غير محدد";
-                fb.querySelectorAll('.apt-edit-box').forEach(ab => {
-                    let rawPrice = ab.querySelector('.apt-price').value || "0";
-                    let formattedPrice = isNaN(rawPrice) || rawPrice === "" ? rawPrice : Number(rawPrice).toLocaleString('en-US') + " ج.م";
-                    apartments.push({
-                        id: ab.id, floor: fName, size: ab.querySelector('.apt-size').value || "غير محدد",
-                        price: formattedPrice, view: ab.querySelector('.apt-view').value || "غير محدد",
-                        rooms: ab.querySelector('.apt-rooms').value || "غير محدد",
-                        payment: ab.querySelector('.apt-payment').value || "غير محدد",
-                        images: window.currentSidebarAptImagesMap[ab.id] || []
-                    });
-                });
-            });
-
-            let localBuildings = localStorage.getItem('map_buildings_integrated');
-            let mapData = localBuildings ? JSON.parse(localBuildings) : [];
-
-            if(window.isEditingExistingMap) {
-                mapData = mapData.map(item => {
-                    if(item.id === window.editingBuildingIdMap) {
-                        return { ...item, name, locationDesc: desc, buildingStatus: bStatus, deliveryDate: bDelivery, images: window.currentSidebarBuildingImages, apartments };
-                    } return item;
-                });
-            } else {
-                mapData.push({
-                    id: Date.now(), name, coords: window.currentTempCoords, locationDesc: desc,
-                    buildingStatus: bStatus, deliveryDate: bDelivery, images: window.currentSidebarBuildingImages, apartments
-                });
-            }
-
-            localStorage.setItem('map_buildings_integrated', JSON.stringify(mapData));
-            alert("تم حفظ العمارة وكل تفاصيل شققها بنجاح بالخريطة!");
-            if(window.tempMarker) window.mapInstance.removeLayer(window.tempMarker); window.tempMarker = null;
-            window.closeAdminModal(); window.updateMapMarkers();
-        };
-
-        window.openAdminEditMapModal = (b) => {
-            window.isEditingExistingMap = true; window.editingBuildingIdMap = b.id; window.currentTempCoords = b.coords;
-            document.getElementById('admin-modal-title').innerText = `📝 تعديل بيانات عمارة الخريطة: ${b.name}`;
-            document.getElementById('form-b-name').value = b.name;
-            document.getElementById('form-b-desc').value = b.locationDesc;
-            document.getElementById('form-b-status').value = b.buildingStatus || 'مبنية';
-            document.getElementById('form-b-delivery').value = b.deliveryDate || '';
-            window.toggleBuildingDeliveryInput(b.buildingStatus || 'مبنية');
-
-            window.currentSidebarBuildingImages = b.images || [];
-            const bPreview = document.getElementById('b-images-preview'); bPreview.innerHTML = '';
-            window.currentSidebarBuildingImages.forEach(src => { bPreview.innerHTML += `<img src="${src}"/>`; });
-
-            const container = document.getElementById('form-map-floors-container'); container.innerHTML = '';
-            window.currentSidebarAptImagesMap = {};
-
-            const floorsMap = {};
-            (b.apartments || []).forEach(apt => {
-                if(!floorsMap[apt.floor]) floorsMap[apt.floor] = [];
-                floorsMap[apt.floor].push(apt);
-            });
-
-            let fIndex = 0;
-            for(let floorName in floorsMap) {
-                fIndex++; const floorId = `map-floor-edit-${fIndex}`;
-                const floorHtml = `
-                    <div class="nested-box text-right" id="${floorId}">
-                        <button class="delete-icon-btn" onclick="document.getElementById('${floorId}').remove()">❌ حذف الدور</button>
-                        <label>الدور:</label><input type="text" class="floor-name-input border p-1 rounded" value="${floorName}">
-                        <div class="apts-box mt-2"></div>
-                        <button class="btn text-[10px] py-1 px-2" style="background:#0284c7;" onclick="window.addMapAptForm('${floorId}')">➕ إضافة شقة في الدور</button>
-                    </div>`;
-                container.insertAdjacentHTML('beforeend', floorHtml);
-
-                const aptsBox = document.getElementById(floorId).querySelector('.apts-box');
-                floorsMap[floorName].forEach(apt => {
-                    let aptUid = apt.id || `map-uid-gen-${Math.random()}`;
-                    window.currentSidebarAptImagesMap[aptUid] = apt.images || [];
-                    const aptHtml = `
-                        <div class="apt-edit-box" id="${aptUid}">
-                            <button class="delete-icon-btn" onclick="this.parentElement.remove()">❌</button>
-                            <input type="text" class="apt-size w-full border p-1 rounded text-xs" value="${apt.size}">
-                            <input type="text" class="apt-price w-full border p-1 rounded text-xs mt-1" value="${apt.price.replace(/[^\d]/g, '')}">
-                            <input type="text" class="apt-view w-full border p-1 rounded text-xs mt-1" value="${apt.view}">
-                            <input type="text" class="apt-rooms w-full border p-1 rounded text-xs mt-1" value="${apt.rooms}">
-                            <input type="text" class="apt-payment w-full border p-1 rounded text-xs mt-1" value="${apt.payment}">
-                            <input type="file" multiple accept="image/*" onchange="window.saveAptImages(this, '${aptUid}')" class="text-[10px] mt-1 w-full">
-                            <div class="image-preview">${(apt.images || []).map(img => `<img src="${img}"/>`).join('')}</div>
-                        </div>`;
-                    aptsBox.insertAdjacentHTML('beforeend', aptHtml);
-                });
-            }
-
-            const delBtn = document.getElementById('sidebar-delete-btn'); delBtn.style.display = 'block';
-            delBtn.onclick = function() {
-                if(confirm(`حذف عمارة ${b.name} تماماً من نظام الخرائط؟`)) {
-                    let localBuildings = localStorage.getItem('map_buildings_integrated');
-                    let mapData = localBuildings ? JSON.parse(localBuildings) : [];
-                    mapData = mapData.filter(x => x.id !== b.id);
-                    localStorage.setItem('map_buildings_integrated', JSON.stringify(mapData));
-                    window.closeAdminModal(); window.updateMapMarkers();
-                }
-            };
-            document.getElementById('admin-map-modal').classList.add('active');
-        };
-
-        window.openClientBuildingModal = (b) => {
-            window.currentSelectedBuilding = b;
-            document.getElementById('modal-b-name').innerText = "عمارة " + b.name;
-            document.getElementById('modal-b-loc').innerText = "📍 " + (b.locationDesc || "حدائق الأهرام");
-            document.getElementById('modal-b-desc-box').innerHTML = `<strong>نظرة عامة للموقع:</strong> عمارة متميزة بموقع استراتيجي رائع في ${b.locationDesc || 'حدائق الأهرام'}.`;
-            
-            document.getElementById('google-maps-btn').onclick = function() {
-                window.open(`https://maps.google.com/?q=${b.coords[0]},${b.coords[1]}`, '_blank');
-            };
-
-            const statusZone = document.getElementById('modal-b-status-zone');
-            if(b.buildingStatus === 'مبنية') {
-                statusZone.innerHTML = `<span class="status-ready">جاهزة للاستلام 🔑</span>`;
-            } else {
-                statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span><p class="text-[11px] mt-1 text-orange-600 font-bold">🕒 التسليم: ${b.deliveryDate || 'قريباً'}</p>`;
-            }
-
-            const gallery = document.getElementById('modal-b-gallery'); gallery.innerHTML = '';
-            if(b.images && b.images.length > 0) {
-                b.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.viewImageInLightbox('${img}')"/>`; });
-            } else { gallery.innerHTML = '<p class="text-slate-400 text-xs py-2">📸 لم يتم رفع صور واجهة للعمارة حالياً.</p>'; }
-
-            const floorsList = document.getElementById('modal-floors-list'); floorsList.innerHTML = '';
-            const uniqueFloors = [...new Set((b.apartments || []).map(a => a.floor))];
-            uniqueFloors.forEach(floorName => {
-                floorsList.innerHTML += `<button class="floor-btn" onclick="window.selectMapFloor('${floorName}')">🏢 ${floorName}</button>`;
-            });
-
-            document.getElementById('floors-section').classList.remove('fade-out');
-            document.getElementById('sizes-section').classList.add('fade-out');
-            document.getElementById('building-modal').classList.add('active');
-        };
-
-        window.selectMapFloor = (floorName) => {
-            document.getElementById('selected-floor-title').innerText = `المساحات المتاحة في (${floorName}):`;
-            const sizesList = document.getElementById('modal-sizes-list'); sizesList.innerHTML = '';
-            const filteredApts = window.currentSelectedBuilding.apartments.filter(a => a.floor === floorName);
-            filteredApts.forEach(apt => {
-                sizesList.innerHTML += `
-                    <div class="size-card" onclick='window.openMapApartmentModal(${JSON.stringify(apt)})'>
-                        <div><strong class="text-navy text-base">📐 مساحة ${apt.size} م</strong><p class="text-xs text-slate-500 mt-1">👁️ الإطلالة: ${apt.view}</p></div>
-                        <span class="price-badge">${apt.price}</span>
-                    </div>`;
-            });
-            document.getElementById('floors-section').classList.add('fade-out');
-            const sizesSection = document.getElementById('sizes-section'); sizesSection.classList.remove('fade-out'); sizesSection.classList.add('fade-in');
-        };
-
-        // --- دوال Payment Plan والواتساب الجديدة ---
-        window.calcAptPayment = (totalPrice) => {
-            let pct = parseFloat(document.getElementById('apt-down-pct').value) || 0;
-            let months = parseInt(document.getElementById('apt-months').value) || 0;
-            let resultDiv = document.getElementById('apt-payment-result');
-            let down = (totalPrice * pct) / 100;
-            let rem = totalPrice - down;
-            let monthly = months > 0 ? rem / months : 0;
-
-            window.currentActiveApartmentData.calculatedPlan = {
-                down: down,
-                months: months,
-                monthly: monthly,
-                pct: pct
-            };
-
-            if (pct > 0 && months > 0) {
-                resultDiv.innerHTML = `<span class="text-green-700 font-extrabold">المقدم: ${Math.round(down).toLocaleString('en-US')} ج</span> <br> <span class="text-red-600 font-extrabold">القسط: ${Math.round(monthly).toLocaleString('en-US')} ج / ${months} شهر</span>`;
-            } else {
-                resultDiv.innerHTML = '';
-            }
-        };
-
-        window.shareMapApartmentWhatsApp = () => {
-            let apt = window.currentActiveApartmentData;
-            let b = window.currentSelectedBuilding;
-            let locLink = `https://maps.google.com/?q=${b.coords[0]},${b.coords[1]}`;
-            let sName = window.currentAgentName || "المبيعات";
-
-            let msg = `أهلاً بك يا فندم معك أ/ ${sName} 👋\n\n`;
-            msg += `🏢 *تفاصيل الوحدة العقارية المتميزة:*\n`;
-            msg += `▪️ العمارة: *${b.name}*\n`;
-            msg += `▪️ المساحة: *${apt.size}*\n`;
-            msg += `▪️ الدور: *${apt.floor}*\n`;
-            msg += `▪️ الإطلالة: *${apt.view}*\n`;
-            msg += `▪️ التقسيم الداخلي: *${apt.rooms}*\n`;
-            msg += `💰 *السعر الإجمالي:* ${apt.price}\n\n`;
-
-            if (apt.calculatedPlan && apt.calculatedPlan.months > 0) {
-                msg += `💳 *خطة الدفع (Payment Plan):*\n`;
-                msg += `- المقدم (${apt.calculatedPlan.pct}%): *${Math.round(apt.calculatedPlan.down).toLocaleString('en-US')} ج.م*\n`;
-                msg += `- القسط الشهري: *${Math.round(apt.calculatedPlan.monthly).toLocaleString('en-US')} ج.م*\n`;
-                msg += `- مدة التقسيط: *${apt.calculatedPlan.months} شهر*\n\n`;
-            } else {
-                msg += `💳 *نظام السداد:* ${apt.payment}\n\n`;
-            }
-
-            msg += `📍 *موقع العمارة الفعلي على الخريطة (GPS):*\n${locLink}\n\n`;
-            msg += `لأي استفسار أو لمعاينة الموقع، أنا تحت أمرك في أي وقت!`;
-
-            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-        };
-
-        window.openMapApartmentModal = (apt) => {
-            window.currentActiveApartmentData = apt;
-            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل شقة مساحة ${apt.size}`;
-            document.getElementById('apt-modal-view').innerText = apt.view;
-            document.getElementById('apt-modal-rooms').innerText = apt.rooms;
-            document.getElementById('apt-modal-price').innerText = `السعر الإجمالي: ${apt.price}`;
-            
-            // استخراج السعر كرقم لحساب الـ Payment Plan
-            let rawPrice = apt.price ? apt.price.toString().replace(/[^\d.]/g, '') : "0";
-            let cleanPrice = parseFloat(rawPrice) || 0;
-            
-            const dynamicPaymentDiv = document.getElementById('dynamic-payment-plan');
-            if (cleanPrice > 0) {
-                dynamicPaymentDiv.innerHTML = `
-                    <div class="mt-4 bg-blue-50 p-4 rounded-xl border border-blue-200">
-                        <h4 class="font-black text-navy text-sm mb-3">💳 خطة الدفع (Payment Plan):</h4>
-                        <div class="flex gap-2 mb-2">
-                            <input type="number" id="apt-down-pct" placeholder="المقدم %" class="border p-2 text-xs rounded-lg w-1/2 font-bold outline-none focus:border-navy" oninput="window.calcAptPayment(${cleanPrice})">
-                            <input type="number" id="apt-months" placeholder="عدد الشهور" class="border p-2 text-xs rounded-lg w-1/2 font-bold outline-none focus:border-navy" oninput="window.calcAptPayment(${cleanPrice})">
-                        </div>
-                        <div id="apt-payment-result" class="text-sm text-slate-700 font-black mt-2 bg-white p-2 rounded-lg text-center min-h-[40px]"></div>
-                    </div>
-                `;
-            } else {
-                dynamicPaymentDiv.innerHTML = `<p class="mt-3 text-sm text-slate-500 font-bold">نظام السداد: ${apt.payment}</p>`;
-            }
-
-            const gallery = document.getElementById('apt-modal-gallery'); gallery.innerHTML = '';
-            if(apt.images && apt.images.length > 0) {
-                apt.images.forEach(img => { gallery.innerHTML += `<img src="${img}" onclick="window.viewImageInLightbox('${img}')"/>`; });
-            } else { gallery.innerHTML = '<p class="text-slate-400 text-xs py-2">📸 لم يتم رفع صور داخلية للشقة بعد.</p>'; }
-            document.getElementById('apartment-modal').classList.add('active');
-        };
-
-        window.openViewingSchedulerModal = () => { document.getElementById('scheduler-modal').classList.add('active'); };
-        window.closeViewingSchedulerModal = () => { document.getElementById('scheduler-modal').classList.remove('active'); };
-
-        window.sendViewingRequestToSalesWhatsApp = () => {
-            const clientName = document.getElementById('client-name-input').value.trim();
-            const viewingDate = document.getElementById('client-date-input').value;
-            const viewingTime = document.getElementById('client-time-input').value;
-            if(!clientName || !viewingDate || !viewingTime) return alert("برجاء إدخال اسمك وتحديد اليوم والساعة لترتيب الزيارة!");
-
-            let sName = window.currentAgentName || "المبيعات";
-            const messageText = `مرحباً أ/ ${sName}،\nلقد قام العميل: *${clientName}* بطلب حجز موعد معاينة لشقة من تطبيق الخريطة الذكية.\n\n📊 *تفاصيل الوحدة:*\n- عمارة: *عمارة ${window.currentSelectedBuilding.name}*\n- المساحة: *${window.currentActiveApartmentData.size}*\n- الطابق: *${window.currentActiveApartmentData.floor}*\n\n📅 *موعد الزيارة المقترح:*\n- التاريخ: *${viewingDate}*\n- الوقت: *${viewingTime}*`;
-            window.open(`https://wa.me/201000000000?text=${encodeURIComponent(messageText)}`, '_blank');
-            window.closeViewingSchedulerModal(); document.getElementById('apartment-modal').classList.remove('active');
-        };
-
-        window.viewImageInLightbox = (src) => {
-            const lightbox = document.getElementById('lightbox-overlay');
-            const lightboxImg = document.getElementById('lightbox-img');
-            lightboxImg.src = src; lightbox.style.display = 'flex';
-        };
-        window.closeLightbox = () => { document.getElementById('lightbox-overlay').style.display = 'none'; };
-        window.closeAdminModal = () => { document.getElementById('admin-map-modal').classList.remove('active'); if(window.tempMarker) window.mapInstance.removeLayer(window.tempMarker); window.tempMarker = null; };
-        window.closeBuildingModal = () => { document.getElementById('building-modal').classList.remove('active'); };
-        window.closeApartmentModal = () => { document.getElementById('apartment-modal').classList.remove('active'); };
-        window.closeAdminSidebar = () => { window.closeAdminModal(); };
-        window.goBackToFloors = () => { document.getElementById('sizes-section').classList.add('fade-out'); const fs = document.getElementById('floors-section'); fs.remove('fade-out'); fs.classList.add('fade-in'); };
-        window.closeModal = (modal, e) => { if(e.target === modal) modal.classList.remove('active'); };
-        window.openSalesModal = () => { document.getElementById('sales-modal').classList.add('active'); };
-        window.closeSalesModal = () => { document.getElementById('sales-modal').classList.remove('active'); };
-        
-        window.generateSalesLink = () => {
-            const name = document.getElementById('sales-name-input').value.trim();
-            const phone = document.getElementById('sales-phone-input').value.trim();
-            let ws = document.getElementById('sales-ws-input').value.trim();
-            if(!name || !phone || !ws) return alert("املا البيانات!");
-            if(!ws.startsWith('20')) ws = '20' + Number(ws);
-            const baseUrl = window.location.origin + window.location.pathname;
-            const generatedUrl = `${baseUrl}?sales_name=${encodeURIComponent(name)}&sales_phone=${encodeURIComponent(phone)}&sales_ws=${encodeURIComponent(ws)}`;
-            const linkBox = document.getElementById('generated-link-box');
-            linkBox.innerText = generatedUrl; linkBox.style.display = 'block';
-            navigator.clipboard.writeText(generatedUrl);
-            alert("تم إصدار اللينك العقاري ونسخه بنجاح وحفظ عمولتك!");
-        };
     </script>
 </head>
 <body class="bg-white text-right font-sans">
@@ -1603,9 +1184,8 @@
 
     <div id="appSection" class="hidden max-w-6xl mx-auto p-4 md:p-8 font-black uppercase">
         <header class="flex justify-between items-center mb-6 bg-white p-5 rounded-2xl shadow-sm border-r-8 border-navy relative font-black">
-            <h1 class="text-3xl font-black text-navy italic font-serif tracking-tighter uppercase select-none">Inventory</h1>
+            <h1 class="text-3xl font-black text-navy italic font-serif tracking-tighter uppercase">Inventory</h1>
             <div class="flex items-center gap-4 font-black">
-                <span id="admin-indicator" class="hidden bg-red-100 text-red-700 text-[10px] px-3 py-1.5 rounded-full font-black border border-red-200 animate-pulse">⚙️ وضع الأدمن بالخريطة نشط</span>
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
                 <div class="relative cursor-pointer font-black" onclick="toggleNotif()">
@@ -1619,11 +1199,6 @@
                 <div id="notifList" class="max-h-64 overflow-y-auto font-black italic"></div>
             </div>
         </header>
-
-        <div class="w-full bg-white p-4 rounded-3xl shadow-lg border border-slate-200 mb-6 no-print">
-            <h3 class="text-navy text-xs font-black mb-2 text-right">🗺️ الخريطة العقارية التفاعلية الذكية:</h3>
-            <div id="map-embedded" class="w-full h-[320px] rounded-2xl border" style="z-index:1;"></div>
-        </div>
 
         <div id="buildingTabs" class="flex gap-2 flex-wrap pb-4 mb-4 border-b border-slate-100 font-black italic uppercase"></div>
 
@@ -1664,20 +1239,21 @@
              <div class="bg-blue-50 p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center">
                 <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest font-black">📁 رفع شيت إكسيل (Bulk Upload)<input type="file" accept=".xlsx, .xls" onchange="importExcel(event)" class="hidden font-black italic uppercase"></label>
              </div>
-             <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-md grid grid-cols-2 md:grid-cols-7 gap-3 items-end border border-slate-100 font-black italic uppercase">
-                <input id="c" placeholder="كود" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="a" placeholder="عمارة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="s" oninput="window.autoCalcPrice('size')" placeholder="مساحة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
-                <input id="f" placeholder="دور" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black">
-                <select id="finishType" class="border p-2 rounded-lg bg-slate-50 text-[10px] font-black italic transition uppercase font-black font-black italic"><option value="طوب أحمر">طوب أحمر</option><option value="نص تشطيب">نص تشطيب</option><option value="متشطب">متشطب</option></select>
-                <input id="p" oninput="window.autoCalcPrice('total')" placeholder="سعر" type="number" class="border p-2 rounded-lg font-bold bg-blue-50 text-xs italic outline-none focus:border-navy">
-                <input id="up" oninput="window.autoCalcPrice('unit')" placeholder="سعر المتر" type="number" class="border p-2 rounded-lg font-bold bg-green-50 text-xs italic outline-none focus:border-green-600 font-black italic">
-                <button class="bg-navy text-white rounded-lg font-bold h-10 col-span-2 md:col-span-7 shadow-xl hover:bg-slate-800 transition italic uppercase text-xs font-black">إضافة وحدة جديدة</button>
+             <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-md grid grid-cols-2 md:grid-cols-4 gap-3 items-end border border-slate-100 font-black italic uppercase">
+                <input id="c" placeholder="كود الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="a" placeholder="اسم العمارة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="s" oninput="window.autoCalcPrice('size')" placeholder="مساحة الوحدة" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black" required>
+                <input id="f" placeholder="الدور" class="border p-2 rounded-lg bg-slate-50 text-xs font-black outline-none focus:border-navy italic font-black">
+                <select id="finishType" class="border p-2 rounded-lg bg-slate-50 text-[10px] font-black italic transition uppercase font-black"><option value="طوب أحمر">طوب أحمر</option><option value="نص تشطيب">نص تشطيب</option><option value="متشطب">متشطب</option></select>
+                <input id="p" oninput="window.autoCalcPrice('total')" placeholder="السعر الإجمالي" type="number" class="border p-2 rounded-lg font-bold bg-blue-50 text-xs italic outline-none focus:border-navy">
+                <input id="up" oninput="window.autoCalcPrice('unit')" placeholder="سعر المتر" type="number" class="border p-2 rounded-lg font-bold bg-green-50 text-xs italic outline-none focus:border-green-600">
+                <input id="m_link" placeholder="رابط لوكيشن جوجل ماب العمارة 📍" type="text" class="border p-2 rounded-lg bg-amber-50 text-xs font-black outline-none focus:border-amber-500">
+                <button class="bg-navy text-white rounded-lg font-bold h-10 col-span-2 md:col-span-4 shadow-xl hover:bg-slate-800 transition italic uppercase text-xs font-black">إضافة وحدة جديدة</button>
              </form>
              
              <div class="flex justify-end mt-3">
                  <button type="button" onclick="window.deleteCurrentBuilding()" class="bg-white text-red-500 border border-red-200 px-3 py-2 rounded-xl font-bold shadow-sm hover:bg-red-50 transition italic text-[10px] font-black flex items-center gap-1">
-                     🗑️ حذف العمارة المحددة (احذر)
+                    ⚰️ حذف العمارة المحددة (احذر)
                  </button>
              </div>
         </div>
@@ -1688,119 +1264,16 @@
             <button id="availableFilterBtn" onclick="toggleAvailableFilter()" class="bg-white text-navy px-4 py-3 rounded-xl text-[10px] font-bold shadow-md transition-all font-black uppercase">المتاح فقط</button>
         </div>
 
-        <div class="bg-white rounded-3xl shadow-xl overflow-x-auto border border-slate-200 font-black italic uppercase font-black">
-            <table class="w-full text-right min-w-[1000px] font-black italic uppercase text-right">
+        <div class="bg-white rounded-3xl shadow-xl overflow-x-auto border border-slate-200 font-black italic uppercase">
+            <table class="w-full text-right min-w-[1000px] text-right">
                 <thead class="bg-slate-800 text-white text-[11px] uppercase font-black text-center italic">
                     <tr> <th class="p-5 font-black uppercase tracking-tighter">#</th> <th class="p-5 font-black uppercase tracking-tighter text-right">كود</th> <th class="p-5 font-black uppercase tracking-tighter text-center">العمارة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">التشطيب</th> <th class="p-5 font-black uppercase tracking-tighter text-center">مساحة/دور</th> <th class="p-5 font-black uppercase tracking-tighter text-center italic">سعر المتر</th> <th class="p-5 font-black uppercase tracking-tighter text-right italic font-black">السعر</th> <th class="p-5 font-black uppercase tracking-tighter text-center">الحالة</th> <th class="p-5 font-black uppercase tracking-tighter text-center">تحكم</th> </tr>
                 </thead>
-                <tbody id="propertiesList" class="font-black italic uppercase font-black"></tbody>
+                <tbody id="propertiesList" class="font-black italic uppercase"></tbody>
             </table>
         </div>
     </div>
     
-    <div id="admin-map-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right">
-            <span class="modal-close" onclick="window.closeAdminModal()">✕</span>
-            <h3 id="admin-modal-title" class="font-bold text-lg text-navy mb-4">➕ إضافة وتثبيت عمارة جديدة على الخريطة</h3>
-            <div class="form-group"><label>اسم العمارة بالكامل:</label><input type="text" id="form-b-name" placeholder="مثال: عمارة أ56"></div>
-            <div class="form-group"><label>الوصف والموقع المتميز:</label><textarea id="form-b-desc" rows="2" placeholder="مثال: ثالث نمرة من البوابة الأولى"></textarea></div>
-            <div class="form-group">
-                <label>🏗️ حالة إنشاء المبنى:</label>
-                <select id="form-b-status" onchange="window.toggleBuildingDeliveryInput(this.value)">
-                    <option value="مبنية">مبنية (جاهزة للاستلام الفوري)</option>
-                    <option value="تحت_الإنشاء">تحت الإنشاء</option>
-                </select>
-            </div>
-            <div class="form-group" id="form-b-delivery-group" style="display:none;">
-                <label>📅 موعد تسليم المشروع:</label><input type="text" id="form-b-delivery" placeholder="مثال: 6 شهور">
-            </div>
-            <div class="form-group">
-                <label>📸 صور الواجهة والمدخل الرئيسي:</label>
-                <input type="file" id="form-b-images" multiple accept="image/*" onchange="window.handleMapBuildingImages(this)">
-                <div id="b-images-preview" class="image-preview"></div>
-            </div>
-            <hr class="my-4">
-            <h4 class="font-bold text-sm text-slate-800 mb-2">🏢 هيكلة الطوابق والمساحات المتوفرة:</h4>
-            <div id="form-map-floors-container"></div>
-            <button class="btn text-xs bg-emerald-600 mt-2 w-full" onclick="window.addMapFloorForm()">➕ إضافة دور جديد</button>
-            <button class="btn btn-success w-full mt-4 py-3 text-base" onclick="window.saveBuildingFromSidebar()">💾 حفظ وتثبيت العمارة نهائياً</button>
-            <button class="btn btn-danger w-full mt-2 py-2 text-xs" id="sidebar-delete-btn" style="display:none;">❌ حذف هذه العمارة كلياً</button>
-        </div>
-    </div>
-
-    <div id="building-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right">
-            <span class="modal-close" onclick="window.closeBuildingModal()">✕</span>
-            <div id="modal-b-gallery" class="gallery"></div>
-            <div class="flex justify-between items-start mt-2">
-                <div>
-                    <h2 id="modal-b-name" class="text-2xl font-black text-navy">اسم العمارة</h2>
-                    <p id="modal-b-loc" class="text-sm text-slate-400 mt-1"></p>
-                </div>
-                <div id="modal-b-status-zone"></div>
-            </div>
-            <div id="modal-b-desc-box" class="my-3 text-sm text-slate-600"></div>
-            <button id="google-maps-btn" class="w-full bg-slate-900 text-white py-3 rounded-xl mb-4 text-xs font-bold shadow-md hover:bg-slate-800 transition">🗺️ عرض الموقع الفعلي (Google Maps)</button>
-            
-            <div id="floors-section" class="animated-section">
-                <h3 class="text-sm font-bold text-slate-600 mb-3">⚙️ اختر الطابق لمعاينة المساحات المتوفرة:</h3>
-                <div id="modal-floors-list" class="space-y-1"></div>
-            </div>
-            <div id="sizes-section" class="animated-section fade-out">
-                <button class="bg-slate-500 text-white rounded-xl text-xs py-2 px-4 mb-3 shadow-md transition hover:bg-slate-600" onclick="window.goBackToFloors()">⬅️ العودة للأدوار</button>
-                <h3 id="selected-floor-title" class="text-sm font-bold text-slate-600 mb-3">المساحات المتوفرة:</h3>
-                <div id="modal-sizes-list"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="apartment-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right" style="max-width:520px; border-top: 6px solid #1e3a8a;">
-            <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
-            <h2 id="apt-modal-title" class="text-xl font-black text-navy">تفاصيل الشقة الفاخرة</h2>
-            <hr class="my-3">
-            <div id="apt-modal-gallery" class="gallery"></div>
-            
-            <div class="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-200 relative">
-                <p class="text-sm">👁️ <strong>الإطلالة الكلية:</strong> <span id="apt-modal-view"></span></p>
-                <p class="text-sm">🛏️ <strong>التقسيم الداخلي:</strong> <span id="apt-modal-rooms"></span></p>
-                <p id="apt-modal-price" class="price-badge mt-2 inline-block font-extrabold"></p>
-            </div>
-            
-            <div id="dynamic-payment-plan"></div>
-
-            <div class="flex flex-col gap-2 mt-5">
-                <button onclick="window.shareMapApartmentWhatsApp()" class="w-full bg-[#25D366] text-white p-4 rounded-xl font-black text-base shadow-lg hover:bg-green-600 transition flex justify-center items-center gap-2">
-                    📱 مشاركة تفاصيل الشقة واللوكيشن للعميل (واتساب)
-                </button>
-                <button class="btn-premium-viewing !mt-0 !py-3" onclick="window.openViewingSchedulerModal()">📅 حجز موعد معاينة حية في الموقع</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="scheduler-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right" style="max-width: 400px; border-top: 6px solid #d97706;">
-            <span class="modal-close" onclick="window.closeViewingSchedulerModal()">✕</span>
-            <h3 class="text-amber-700 font-bold text-base mb-2">📅 تحديد موعد المقابلة والمعاينة</h3>
-            <div class="form-group"><label>اسم العميل الكريم:</label><input type="text" id="client-name-input" placeholder="اكتب اسمك بالكامل" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
-            <div class="form-group mt-2"><label>اختر اليوم المناسب:</label><input type="date" id="client-date-input" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
-            <div class="form-group mt-2"><label>اختر الساعة المفضلة:</label><input type="time" id="client-time-input" class="w-full border p-2 rounded text-sm bg-slate-50 mt-1"></div>
-            <button class="w-full py-3 mt-4 text-white font-bold rounded-xl shadow-lg transition hover:bg-amber-600" style="background:#d97706;" onclick="window.sendViewingRequestToSalesWhatsApp()">⚡ تأكيد الموعد وإرساله للمبيعات</button>
-        </div>
-    </div>
-
-    <div id="sales-modal" class="modal-overlay" onclick="window.closeModal(this, event)">
-        <div class="modal-content-map text-right" style="max-width: 420px;">
-            <span class="modal-close" onclick="window.closeSalesModal()">✕</span>
-            <h3 class="font-bold text-sm mb-3">🔑 إصدار روابط تتبع تيم المبيعات</h3>
-            <div class="form-group"><label>اسم السيلز:</label><input type="text" id="sales-name-input" placeholder="مثال: يوسف محمد" class="w-full border p-2 mt-1 rounded text-sm"></div>
-            <div class="form-group mt-2"><label>رقم اتصال الموبايل:</label><input type="text" id="sales-phone-input" placeholder="مثال: 01012345678" class="w-full border p-2 mt-1 rounded text-sm"></div>
-            <div class="form-group mt-2"><label>رقم الواتساب:</label><input type="text" id="sales-ws-input" placeholder="مثال: 201012345678" class="w-full border p-2 mt-1 rounded text-sm"></div>
-            <button class="w-full bg-green-600 text-white font-bold rounded-xl py-3 mt-4 shadow hover:bg-green-700 transition" onclick="window.generateSalesLink()">🔗 إصدار ونسخ رابط السيلز الذكي</button>
-            <div id="generated-link-box" class="p-2 bg-slate-100 rounded text-xs mt-3 hidden break-all text-left"></div>
-        </div>
-    </div>
-
     <div id="nameSetupModal" style="display:none;" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm items-center justify-center p-4 z-[10005]">
         <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-xs border-t-8 border-navy modal-animate text-center font-black">
             <h3 class="text-navy font-black text-base mb-2">مرحباً بك في السيستم فريد 👋</h3>
@@ -1857,7 +1330,9 @@
                     <button onclick="toggleAdminReportModal()" class="no-print text-2xl font-bold hover:text-red-400 transition">×</button>
                 </div>
             </div>
+            
             <div class="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-4">
+                
                 <div class="no-print bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
                     <div class="flex items-center gap-2 w-full md:w-auto">
                         <span class="text-[11px] text-navy font-black shrink-0">الأرشيف 📁:</span>
@@ -1868,6 +1343,7 @@
                         <div id="monthsCheckboxesContainer" class="flex items-center gap-1.5"></div>
                     </div>
                 </div>
+
                 <div class="grid grid-cols-3 gap-3">
                     <div class="bg-white p-3.5 rounded-2xl border-r-[6px] border-green-600 shadow-sm text-center">
                         <p id="soldCardTitle" class="text-[10px] text-slate-400 font-black">المباع</p>
@@ -1882,6 +1358,7 @@
                         <p id="reportAnnualSoldCount" class="text-xl font-black text-blue-800 mt-1 eng-num">0</p>
                     </div>
                 </div>
+
                 <div class="bg-white rounded-2xl border overflow-x-auto shadow-sm">
                     <table class="w-full min-w-[600px]">
                         <thead class="bg-slate-100 border-b text-center text-[10px] text-slate-500 font-black uppercase">
@@ -1970,39 +1447,55 @@
     <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[10001] font-black uppercase italic">
         <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-[340px] relative border-t-8 border-navy p-6 text-right font-black">
             <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black">×</button>
-            <h3 class="text-navy font-black mb-4 text-lg text-right italic underline underline-offset-4 font-black">حساب القسط: <span id="m_code"></span></h3>
+            <h3 class="text-navy font-black mb-4 text-lg text-right italic underline underline-offset-4">حساب القسط: <span id="m_code"></span></h3>
             <div class="space-y-4 font-black italic text-right">
                 <div>
-                    <label class="text-[10px] text-slate-400 block mb-1 pr-2 uppercase font-black">إجمالي السعر</label>
+                    <label class="text-[10px] text-slate-400 block mb-1 pr-2 uppercase">إجمالي السعر</label>
                     <input id="m_total" type="text" oninput="window.runCalc('price')" class="w-full bg-slate-50 border p-2 rounded-lg eng-num font-extrabold text-base outline-none border-slate-200">
                 </div>
                 <div class="border-b pb-2">
-                    <label class="text-[10px] text-navy block mb-1 pr-2 font-black">المقدم</label>
+                    <label class="text-[10px] text-navy block mb-1 pr-2">المقدم</label>
                     <div class="grid grid-cols-3 gap-2 w-full">
                         <input id="m_down_pct" placeholder="%" type="text" oninput="window.runCalc('pct_input')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
                         <input id="m_down" placeholder="كاش" type="text" oninput="window.runCalc('amount_input')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
                     </div>
                 </div>
                 <div class="border-b pb-2">
-                    <label class="text-[10px] text-red-500 block mb-1 pr-2 font-black">الدفعات % <span id="res_pct_val" class="text-[12px] font-extrabold text-navy"></span></label>
+                    <label class="text-[10px] text-red-500 block mb-1 pr-2">الدفعات % <span id="res_pct_val" class="text-[12px] font-extrabold text-navy"></span></label>
                     <div class="grid grid-cols-3 gap-2 w-full">
                         <input id="m_d_pct" placeholder="%" type="text" oninput="window.runCalc('d_pct')" class="col-span-1 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
                         <input id="m_d_amount" placeholder="كاش" type="text" oninput="window.runCalc('d_amount')" class="col-span-2 bg-slate-50 border p-2 rounded-xl eng-num font-extrabold text-base border-red-100">
                     </div>
                 </div>
                 <div>
-                    <label class="text-[10px] text-slate-500 block mb-1 pr-2 font-black uppercase">عدد الشهور الكلي</label>
+                    <label class="text-[10px] text-slate-500 block mb-1 pr-2 uppercase">عدد الشهور الكلي</label>
                     <input id="m_months" type="text" oninput="window.runCalc('price')" class="w-full bg-gray-50 border p-2 rounded-xl eng-num font-extrabold text-base border-slate-200">
                 </div>
             </div>
-            <div class="mt-6 bg-slate-50 border border-slate-200 p-4 rounded-3xl text-center font-black relative">
-                <label class="text-[10px] text-slate-400 block mb-1 font-black">القسط الشهري (اضغط هنا للتعديل وحساب الشهور):</label>
+            <div class="mt-4 bg-slate-50 border border-slate-200 p-4 rounded-3xl text-center font-black relative">
+                <label class="text-[10px] text-slate-400 block mb-1">القسط الشهري (اضغط هنا للتعديل وحساب الشهور):</label>
                 <div class="flex items-center justify-center gap-1 border-b border-slate-300 focus-within:border-navy py-1 mx-4">
                     <span class="text-xs font-bold text-slate-400 font-mono">EGP</span>
                     <input id="res_monthly_input" type="text" oninput="window.runCalc('output_edit')" class="bg-transparent text-blue-900 eng-num font-extrabold text-2xl w-full text-center outline-none" placeholder="0">
                 </div>
             </div>
-            <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-navy text-white p-4 mt-4 rounded-2xl font-black shadow-lg uppercase text-xs italic transition font-black">إغلاق</button>
+            
+            <button onclick="window.generateClientOffer()" class="w-full bg-emerald-600 text-white p-3.5 mt-4 rounded-2xl font-black shadow-lg text-xs transition hover:bg-emerald-700">
+                📲 تجهيز رسالة العرض للعميل
+            </button>
+            <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-navy text-white p-3 mt-2 rounded-2xl font-black shadow-sm text-xs transition">إغلاق</button>
+        </div>
+    </div>
+
+    <div id="offerResultModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 z-[10002]">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm border-t-8 border-emerald-600 text-right font-black">
+            <h3 class="text-emerald-700 font-black mb-3 text-base">📝 عرض السعر الجاهز للإرسال</h3>
+            <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">تم دمج بيانات الشقة، الحسبة، واللوكيشن من الماب بنجاح في الرسالة بالأسفل:</p>
+            <textarea id="offerTextArea" rows="10" class="w-full border p-3 rounded-2xl text-xs bg-slate-50 font-medium text-slate-700 leading-relaxed outline-none focus:border-emerald-600 resize-none"></textarea>
+            <div class="flex gap-2 mt-4">
+                <button onclick="window.copyOfferText()" class="flex-1 bg-emerald-600 text-white p-3 rounded-xl font-black text-xs shadow-md">📋 نسخ العرض وإغلاق</button>
+                <button onclick="document.getElementById('offerResultModal').style.display='none'" class="bg-slate-100 text-slate-500 px-4 py-3 rounded-xl text-xs font-bold">إلغاء</button>
+            </div>
         </div>
     </div>
 
@@ -2035,11 +1528,6 @@
             </div>
             <button onclick="document.getElementById('finishEditModal').style.display='none'" class="mt-6 text-slate-400 font-black text-[10px] uppercase underline text-center italic tracking-widest transition">إلغاء</button>
         </div>
-    </div>
-
-    <div id="lightbox-overlay" onclick="window.closeLightbox()">
-        <span class="lightbox-close" onclick="window.closeLightbox()">×</span>
-        <img id="lightbox-img" src="" alt="معاينة دقيقة">
     </div>
 </body>
 </html>
