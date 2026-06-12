@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>المعاينة التفاعلية | عقاري اليوم</title>
+    <!-- تعديل العنوان ليكون خاص بمشاريع الشركة -->
+    <title>مواقع مشاريع الشركة | عقاري اليوم</title>
+    
+    <!-- تعديل الأيقونة لتكون على شكل خريطة -->
+    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/map.png">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/512/map.png">
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -95,8 +101,8 @@
     <div id="main-container">
         <!-- الكارت العائم اللي هيظهر للعميل باسم السيلز -->
         <div id="floating-sales-badge">
-            <div style="font-size: 11px; color: #64748b;">المستشار العقاري:</div>
-            <div id="floating-sales-name" style="font-size: 15px; color: #1e3a8a;"></div>
+            <div style="font-size: 11px; color: #64748b;">مشاريع شركة عقاري اليوم 🏢</div>
+            <div id="floating-sales-name" style="font-size: 15px; color: #1e3a8a; margin-top: 2px;"></div>
         </div>
 
         <div id="map"></div>
@@ -185,12 +191,12 @@
         <div class="modal-content" style="max-width: 550px; border-radius: 16px; border-top: 6px solid #3b82f6;">
             <span class="modal-close" onclick="window.closeApartmentModal()">✕</span>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الشقة الفاخرة</h2>
+                <h2 id="apt-modal-title" style="color:#0f172a;">تفاصيل الوحدة السكنية</h2>
                 <span id="apt-modal-code" style="background: #1e3a8a; color: white; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 14px;"></span>
             </div>
             <hr style="margin: 15px 0; border-top: 1px solid #e2e8f0;">
             
-            <h3 style="font-size:13px; color:#64748b; margin-bottom:4px;">📸 صور الشقة من الداخل (اضغط لتكبير الصورة):</h3>
+            <h3 style="font-size:13px; color:#64748b; margin-bottom:4px;">📸 صور الوحدة من الداخل (اضغط لتكبير الصورة):</h3>
             <div id="apt-modal-gallery" class="gallery"></div>
             
             <div style="background: #f8fafc; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
@@ -242,18 +248,23 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // نظام الحماية: إظهار لوحة تحكم الخريطة للأدمن فقط
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (user) {
-                const userDoc = await db.collection('users').doc(user.uid).get();
-                const role = (user.email.toLowerCase() === "ym27891@gmail.com") ? 'admin' : (userDoc.exists ? userDoc.data().role : 'sales');
-                if (role === 'admin') {
-                    document.getElementById('top-bar').style.display = 'flex';
-                    document.getElementById('admin-toggle-btn').style.display = 'inline-block';
-                    document.getElementById('main-container').style.height = 'calc(100vh - 60px)';
+        const urlParams = new URLSearchParams(window.location.search);
+        const isCustomerLink = urlParams.has('sales_name'); // إذا كان اللينك به اسم سيلز، فهو لينك عميل
+
+        // نظام الحماية: إظهار لوحة تحكم الخريطة للأدمن فقط (بشرط ألا يكون هذا اللينك مرسلاً لعميل)
+        if (!isCustomerLink) {
+            firebase.auth().onAuthStateChanged(async (user) => {
+                if (user) {
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    const role = (user.email.toLowerCase() === "ym27891@gmail.com") ? 'admin' : (userDoc.exists ? userDoc.data().role : 'sales');
+                    if (role === 'admin') {
+                        document.getElementById('top-bar').style.display = 'flex';
+                        document.getElementById('admin-toggle-btn').style.display = 'inline-block';
+                        document.getElementById('main-container').style.height = 'calc(100vh - 60px)';
+                    }
                 }
-            }
-        });
+            });
+        }
 
         const map = L.map('map').setView([29.9730, 31.1150], 16);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -652,7 +663,7 @@
             const aptPayment = override.payment || template.payment || "كاش أو تقسيط";
             const aptImages = (override.images && override.images.length > 0) ? override.images : (template.images || []);
 
-            document.getElementById('apt-modal-title').innerText = `🏢 شقة مساحة ${apt.size}م`;
+            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل الوحدة السكنية`;
             document.getElementById('apt-modal-code').innerText = `كود: ${apt.code}`;
             document.getElementById('apt-modal-view').innerText = aptView;
             document.getElementById('apt-modal-rooms').innerText = aptRooms;
