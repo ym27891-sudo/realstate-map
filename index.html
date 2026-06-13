@@ -41,7 +41,6 @@
             .no-print { display: none !important; }
         }
 
-        /* Checkbox styling */
         .plan-checkbox:checked + span { color: #1e3a8a; font-weight: 900; }
     </style>
     <script type="module">
@@ -82,6 +81,40 @@
         let currentAgentWhatsapp = "201000000000";
 
         const notifSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3');
+
+        // --- نظام الإشعارات الذكي (بديل للـ alert) ---
+        window.showToast = (message, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const styles = {
+                success: 'bg-emerald-600 border-emerald-500',
+                error: 'bg-red-600 border-red-500',
+                info: 'bg-blue-600 border-blue-500'
+            };
+            const icons = {
+                success: '✅',
+                error: '⚠️',
+                info: 'ℹ️'
+            };
+
+            toast.className = `${styles[type]} text-white px-6 py-4 rounded-2xl shadow-2xl font-black text-sm border-2 transition-all duration-300 transform -translate-y-10 opacity-0 flex items-center gap-3 backdrop-blur-sm bg-opacity-95`;
+            toast.innerHTML = `<span class="text-xl">${icons[type]}</span> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('-translate-y-10', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-10', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        };
+        // ----------------------------------------------
 
         function cleanToEngNum(str) {
             if(!str) return '';
@@ -231,23 +264,24 @@
             e.preventDefault();
             const email = document.getElementById('email').value.trim();
             const pass = document.getElementById('pass').value;
-            if(!email || !pass) { alert("برجاء ملء البيانات أولاً"); return; }
+            if(!email || !pass) { window.showToast("برجاء ملء البيانات أولاً", "error"); return; }
             try {
                 if (submitAction === 'login') {
                     await signInWithEmailAndPassword(auth, email, pass);
+                    window.showToast("تم تسجيل الدخول بنجاح!", "success");
                 } else {
                     await createUserWithEmailAndPassword(auth, email, pass);
-                    alert("تم إنشاء الحساب وتسجيل الدخول بنجاح!");
+                    window.showToast("تم إنشاء الحساب وتسجيل الدخول بنجاح!", "success");
                 }
             } catch (error) {
                 if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-                    alert("خطأ في الإيميل أو الباسورد يا فنان، راجع بياناتك.");
+                    window.showToast("خطأ في الإيميل أو الباسورد يا فنان، راجع بياناتك.", "error");
                 } else if (error.code === 'auth/email-already-in-use') {
-                    alert("الإيميل ده مسجل مسبقاً، سجل دخول بيه مباشرة.");
+                    window.showToast("الإيميل ده مسجل مسبقاً، سجل دخول بيه مباشرة.", "error");
                 } else if (error.code === 'auth/weak-password') {
-                    alert("الباسورد ضعيف جداً، خليه 6 أرقام أو حروف على الأقل.");
+                    window.showToast("الباسورد ضعيف جداً، خليه 6 أرقام أو حروف على الأقل.", "error");
                 } else {
-                    alert("حدث خطأ أثناء العملية: " + error.message);
+                    window.showToast("حدث خطأ أثناء العملية: " + error.message, "error");
                 }
             }
         };
@@ -363,18 +397,18 @@
             const name = document.getElementById('setupAgentNameInput').value.trim();
             const phone = document.getElementById('setupAgentPhoneInput').value.trim();
             const ws = document.getElementById('setupAgentWsInput').value.trim();
-            if(!name || !phone || !ws) { alert("أدخل بياناتك كاملة (الاسم، التليفون، الواتس) عشان اللينك بتاعك يوصل للعميل سليم!"); return; }
+            if(!name || !phone || !ws) { window.showToast("أدخل بياناتك كاملة عشان اللينك بتاعك يوصل للعميل سليم!", "error"); return; }
             await updateDoc(doc(db, 'users', loggedInUserDocId), { name: name, phone: phone, whatsapp: ws });
             window.currentAgentName = name;
             currentAgentPhone = phone;
             currentAgentWhatsapp = ws;
             document.getElementById('nameSetupModal').style.display = 'none';
-            alert('تم حفظ وتحديث بياناتك بنجاح! اللينكات دلوقتي هتطلع باسمك.');
+            window.showToast('تم حفظ وتحديث بياناتك بنجاح!', "success");
         };
 
         window.openMap = () => {
             if(!window.currentAgentName || currentAgentPhone === "01000000000") {
-                alert("برجاء إعداد بياناتك أولاً من زر 'بياناتي 👤' ليتم توليد اللينك باسمك!");
+                window.showToast("برجاء إعداد بياناتك أولاً من زر 'بياناتي 👤'", "info");
                 window.openProfileEdit();
                 return;
             }
@@ -394,14 +428,14 @@
             let v = parseFloat(document.getElementById('admin_cash_discount').value) || 0;
             await updateDoc(doc(db, 'settings', 'paymentPlans'), { cashDiscount: v });
             window.addLog(`تعديل خصم الكاش إلى ${v}%`);
-            alert('تم حفظ نسبة الخصم بنجاح!');
+            window.showToast('تم حفظ نسبة الخصم بنجاح!', 'success');
         };
         
         window.addPaymentPlan = async () => {
             let name = document.getElementById('admin_plan_name').value;
             let down = parseFloat(document.getElementById('admin_plan_down').value) || 0;
             let months = parseInt(document.getElementById('admin_plan_months').value) || 0;
-            if(!name) return alert('أدخل اسم النظام');
+            if(!name) return window.showToast('أدخل اسم النظام', 'error');
             
             let newPlans = [...paymentPlansStore, {id: Date.now().toString(), name, downPct: down, months}];
             await updateDoc(doc(db, 'settings', 'paymentPlans'), { plans: newPlans });
@@ -409,12 +443,14 @@
             document.getElementById('admin_plan_down').value = '';
             document.getElementById('admin_plan_months').value = '';
             window.addLog(`إضافة نظام سداد جديد: ${name}`);
+            window.showToast('تم إضافة النظام بنجاح', 'success');
         };
         
         window.deletePaymentPlan = async (id) => {
             if(confirm('متأكد من حذف النظام ده؟')) {
                 let newPlans = paymentPlansStore.filter(p => p.id !== id);
                 await updateDoc(doc(db, 'settings', 'paymentPlans'), { plans: newPlans });
+                window.showToast('تم الحذف', 'success');
             }
         };
         
@@ -451,6 +487,7 @@
             } else {
                 updateDoc(doc(db,'properties',id),{status:value, salesName: '', buyerName: '', statusDate: '', teamName: '', commissionSource: '', salesComm: 0, tlComm: 0, sharedFirstPct: 50});
                 window.addLog(`تحديث ${code} لـ ${value}`);
+                window.showToast(`تم تحديث حالة الوحدة إلى ${value}`, 'success');
             }
         };
 
@@ -458,7 +495,7 @@
             const buyer = document.getElementById('buyerName').value.trim();
             const sales = document.getElementById('salesName').value.trim();
             const customDate = document.getElementById('customStatusDate').value;
-            if(!buyer || !sales) { alert("برجاء إدخال اسم السيلز واسم المشتري يا باشا!"); return; }
+            if(!buyer || !sales) { window.showToast("برجاء إدخال اسم السيلز واسم المشتري!", "error"); return; }
 
             const target = window.currentPendingStatus;
             let yearMonth = customDate;
@@ -510,6 +547,7 @@
 
             window.addLog(`تحديث ${target.code} لـ ${target.value} (بواسطة: ${sales} - ${associatedTeamName})`);
             document.getElementById('statusDetailsModal').style.display = 'none';
+            window.showToast("تم حفظ التوثيق بنجاح", "success");
         };
 
         window.resetPropertyStatusFromReport = (id, code) => {
@@ -526,6 +564,7 @@
                     sharedFirstPct: 50
                 });
                 window.addLog(`إلغاء عملية وإرجاع كود ${code} متاحاً`);
+                window.showToast("تم إرجاع الوحدة متاحة", "info");
             }
         };
 
@@ -761,6 +800,7 @@
                 document.getElementById('editTeamModal').style.display = 'none';
                 window.updateReportData();
                 window.addLog(`تعديل تيم الوحدة ${window.currentEditingProp.code} لـ ${newTeam}`);
+                window.showToast("تم تغيير التيم بنجاح", "success");
             }
         };
 
@@ -776,6 +816,7 @@
                 document.getElementById('cleanSharedPctInput').value = '50';
                 window.currentPendingSharedItem = null;
                 window.updateReportData();
+                window.showToast("تم تحديث النسبة بنجاح", "success");
             }
         };
 
@@ -785,6 +826,7 @@
                 await updateDoc(doc(db, 'properties', currentEditingPropId), { price: val });
                 document.getElementById('adminPriceModal').style.display = 'none';
                 window.addLog(`تعديل سعر الوحدة ${currentEditingPropId} لـ ${val}`);
+                window.showToast("تم تعديل السعر بنجاح", "success");
                 if(document.getElementById('adminReportModal').style.display === 'flex') {
                     window.updateReportData();
                 }
@@ -853,6 +895,7 @@
             await addDoc(collection(db, 'teams'), { name: name, time: serverTimestamp() });
             input.value = '';
             window.addLog(`إنشاء تيم جديد باسم: ${name}`);
+            window.showToast("تم إضافة التيم بنجاح", "success");
         };
 
         window.deleteTeam = async (id, name) => {
@@ -860,23 +903,29 @@
                 await deleteDoc(doc(db, 'teams', id));
                 if(currentActiveReportTeamId === id) currentActiveReportTeamId = "";
                 window.addLog(`حذف تيم: ${name}`);
+                window.showToast("تم الحذف بنجاح", "success");
             }
         };
 
         window.updateUserTeam = async (userId, teamId) => {
             await updateDoc(doc(db, 'users', userId), { teamId: teamId });
             window.addLog("تحديث تيم لموظف");
+            window.showToast("تم تحديث تيم الموظف", "success");
         };
 
-        window.changeRole = async (id, r) => await updateDoc(doc(db, 'users', id), { role: r === 'admin' ? 'sales' : 'admin' });
+        window.changeRole = async (id, r) => {
+            await updateDoc(doc(db, 'users', id), { role: r === 'admin' ? 'sales' : 'admin' });
+            window.showToast("تم تغيير الرتبة بنجاح", "success");
+        };
         window.kickUser = (uid) => remove(ref(rtdb, 'status/' + uid));
-        window.deleteUser = async (id) => { if(confirm('حذف؟')) await deleteDoc(doc(db, 'users', id)); };
+        window.deleteUser = async (id) => { if(confirm('حذف الموظف نهائياً؟')) { await deleteDoc(doc(db, 'users', id)); window.showToast("تم الحذف", "success"); } };
 
         window.changeAgentNameByAdmin = async (userId, oldName) => {
             const newName = prompt("تعديل اسم الموظف العربي:", oldName || "");
             if (newName !== null) {
                 await updateDoc(doc(db, 'users', userId), { name: newName.trim() });
                 window.addLog(`تعديل اسم موظف إلى ${newName}`);
+                window.showToast("تم تعديل الاسم", "success");
             }
         };
 
@@ -894,7 +943,7 @@
             const container = document.getElementById('adminTeamsManagementList');
             if(!container) return;
             if(teamsStore.length === 0) {
-                container.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-3 italic">لا يوجد فرق مائلة.</p>`;
+                container.innerHTML = `<p class="text-[11px] text-slate-400 text-center py-3 italic">لا يوجد فرق مسجلة.</p>`;
                 return;
             }
             container.innerHTML = teamsStore.map(t => {
@@ -980,16 +1029,16 @@
         window.saveOnlineSheetUrl = async () => {
             const url = document.getElementById('adminSheetUrlInput').value.trim();
             if (!url || !url.startsWith("http")) {
-                alert("برجاء إدخال لينك صحيح يبدأ بـ http يا فنان!");
+                window.showToast("برجاء إدخال لينك صحيح يبدأ بـ http يا فنان!", "error");
                 return;
             }
             await setDoc(doc(db, 'settings', 'onlineSheet'), { url: url });
             savedOnlineSheetUrl = url;
-            alert("تم حفظ لينك الشيت بنجاح! وتقدر تعمل مزامنة دلوقتي 🚀");
+            window.showToast("تم حفظ لينك الشيت بنجاح! وتقدر تعمل مزامنة دلوقتي 🚀", "success");
             window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
         };
 
-        // المحلل الخارق الجديد (Array Parser)
+        // --- المحلل الخارق الجديد (الخطة البديلة للتعرف على الشيت بدون تعديل الإكسيل) ---
         const normalizeString = (str) => {
             if (str === null || str === undefined) return '';
             return String(str).replace(/[\r\n\s_]+/g, '')
@@ -1014,37 +1063,52 @@
             let addedCount = 0;
             let updatedCount = 0;
 
-            // قاموس الأرقام للأعمدة
             let colMap = { code: -1, unitNum: -1, area1: -1, area2: -1, size: -1, unitPrice: -1, price: -1, floor: -1, finish: -1, status: -1, buyer: -1 };
             let headerRowIdx = -1;
 
-            // تحديد الأعمدة من الشيت مباشرة (زي عين الإنسان)
-            for(let r=0; r < Math.min(rawData.length, 10); r++) {
+            // محاولة البحث عن صف العناوين في أول 50 صف (زيادة النطاق لتفادي دمج الخلايا العلوية)
+            for(let r=0; r < Math.min(rawData.length, 50); r++) {
                 let row = rawData[r];
                 if(!row || !Array.isArray(row)) continue;
                 
                 let foundCode = false;
+                let confidenceScore = 0;
+
                 for(let c=0; c < row.length; c++) {
                     let cell = normalizeString(row[c]);
                     if(!cell) continue;
 
-                    if(cell.includes('كود')) { colMap.code = c; foundCode = true; }
-                    else if(cell.includes('رقمالوحده')) colMap.unitNum = c;
-                    else if(cell.includes('عماره') || cell.includes('عمارة')) colMap.area1 = c;
-                    else if(cell.includes('منطقه') && !cell.includes('عماره')) colMap.area2 = c;
-                    else if(cell.includes('مساحه')) colMap.size = c;
-                    else if(cell.includes('سعرالمتر')) colMap.unitPrice = c;
-                    else if(cell.includes('اجماليسعر') || (cell.includes('سعر') && !cell.includes('متر'))) colMap.price = c;
-                    else if(cell.includes('دور') || cell === 'اسمالدوربيعي') colMap.floor = c;
-                    else if(cell.includes('تشطيب')) colMap.finish = c;
-                    else if(cell.includes('حاله') && cell.includes('وحده')) colMap.status = c;
-                    else if(cell.includes('مشتري') || cell.includes('عميل')) colMap.buyer = c;
+                    if(cell.includes('كود') || cell.includes('الكود') || cell === 'code') { colMap.code = c; foundCode = true; confidenceScore++; }
+                    else if(cell.includes('رقمالوحده') || cell.includes('رقم')) { colMap.unitNum = c; confidenceScore++; }
+                    else if(cell.includes('عماره') || cell.includes('عمارة') || cell.includes('منطقه')) { colMap.area1 = c; confidenceScore++; }
+                    else if(cell.includes('مساحه') || cell.includes('مساحة')) { colMap.size = c; confidenceScore++; }
+                    else if(cell.includes('سعرالمتر')) { colMap.unitPrice = c; confidenceScore++; }
+                    else if(cell.includes('اجماليسعر') || (cell.includes('سعر') && !cell.includes('متر'))) { colMap.price = c; confidenceScore++; }
+                    else if(cell.includes('دور') || cell === 'اسمالدوربيعي') { colMap.floor = c; confidenceScore++; }
+                    else if(cell.includes('تشطيب')) { colMap.finish = c; confidenceScore++; }
+                    else if(cell.includes('حاله') && cell.includes('وحده')) { colMap.status = c; confidenceScore++; }
+                    else if(cell.includes('مشتري') || cell.includes('عميل')) { colMap.buyer = c; confidenceScore++; }
                 }
-                if(foundCode) { headerRowIdx = r; break; }
+                
+                // إذا وجدنا الكلمة الصريحة أو على الأقل 3 أعمدة تدل على أنه صف العناوين
+                if(foundCode || confidenceScore >= 3) { headerRowIdx = r; break; }
             }
 
+            // الخطة "ب" المطلقة: لو فشل البحث، هنطبق خريطة ثابتة بناءً على شكل شيت حدائق الأهرام بتاعك بالظبط!
             if(headerRowIdx === -1) {
-                throw new Error("فشل التعرف على صف العناوين! تأكد إن الشيت فيه كلمة 'كود الوحدة'.");
+                console.log("الخطة ب: تطبيق الخريطة الثابتة للشيت");
+                // بناءً على ترتيب الأعمدة الثابت في الشيت المرفق في الصور
+                colMap = { code: 6, unitNum: 5, area1: 3, area2: 4, size: 8, unitPrice: 9, price: 10, floor: 2, finish: 14, status: 15, buyer: 18 };
+                
+                // البحث عن أول صف يحتوي فعلياً على بيانات في عمود الأكواد (عمود G أي اندكس 6)
+                for(let r=0; r < Math.min(rawData.length, 50); r++) {
+                    if(rawData[r] && rawData[r][6] && String(rawData[r][6]).includes('-')) { 
+                        headerRowIdx = r - 1; // السطر اللي قبله هو العناوين
+                        break;
+                    }
+                }
+                // لو لسه مفيش، نبدأ من الصف رقم 1 احتياطي
+                if(headerRowIdx === -1) headerRowIdx = 0; 
             }
 
             for(let i = headerRowIdx + 1; i < rawData.length; i++) {
@@ -1143,7 +1207,7 @@
 
         window.syncFromOnlineSheet = async () => {
             if (!savedOnlineSheetUrl) {
-                alert("لازم تحط لينك الـ CSV في الخانة المخصصة وتدوس 'حفظ اللينك' الأول!");
+                window.showToast("لازم تحط لينك الـ CSV في الخانة المخصصة وتدوس 'حفظ اللينك' الأول!", "info");
                 return;
             }
 
@@ -1161,11 +1225,11 @@
                 const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
                 const res = await processSheetData(rawData);
 
-                alert(`تم سحب البيانات بنجاح يا بطل! 🚀\nاسترداد وإضافة جديد: ${res.addedCount} وحدة.\nتحديث وتعديل أسعار: ${res.updatedCount} وحدة.`);
+                window.showToast(`تم سحب البيانات بنجاح! 🚀 (إضافة: ${res.addedCount} / تحديث: ${res.updatedCount})`, "success");
                 if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
                 
             } catch (error) {
-                alert("حصل عطل في المزامنة. العطل: " + error.message);
+                window.showToast("حصل عطل في المزامنة. تأكد من اللينك. العطل: " + error.message, "error");
                 if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
             }
         };
@@ -1178,9 +1242,9 @@
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
                     const res = await processSheetData(rawData);
-                    alert(`تم رفع الملف وتحديث الأسعار بنجاح! 🚀\nجديد: ${res.addedCount} وحدة.\nتحديث: ${res.updatedCount} وحدة.`);
+                    window.showToast(`تم رفع الملف بنجاح! 🚀 (إضافة: ${res.addedCount} / تحديث: ${res.updatedCount})`, "success");
                 } catch(error) {
-                    alert("حصل عطل، اتأكد من الملف المرفوع. العطل: " + error.message);
+                    window.showToast("حصل عطل، اتأكد من الملف المرفوع. العطل: " + error.message, "error");
                 }
             };
             reader.readAsArrayBuffer(e.target.files[0]);
@@ -1196,7 +1260,7 @@
             const price = Number(document.getElementById('p').value) || 0;
             const unitPrice = Number(document.getElementById('up').value) || 0;
 
-            if(!code || !area || !size) { alert("أدخل بيانات الكود، العمارة، والمساحة كحد أدنى!"); return; }
+            if(!code || !area || !size) { window.showToast("أدخل بيانات الكود، العمارة، والمساحة كحد أدنى!", "error"); return; }
 
             try {
                 await addDoc(collection(db, 'properties'), {
@@ -1211,10 +1275,10 @@
                     time: serverTimestamp(),
                     sharedFirstPct: 50
                 });
-                alert("تم إضافة الوحدة العقارية الجديدة بنجاح! 🎉");
+                window.showToast("تم إضافة الوحدة العقارية الجديدة بنجاح! 🎉", "success");
                 e.target.reset();
             } catch (error) {
-                alert("حدث خطأ أثناء حفظ الوحدة: " + error.message);
+                window.showToast("حدث خطأ أثناء حفظ الوحدة: " + error.message, "error");
             }
         };
 
@@ -1328,7 +1392,7 @@
             const price = Number(document.getElementById('rp').value) || 0;
             const finish = document.getElementById('rf').value;
             
-            if(!code || !area) { alert("أدخل بيانات وحدة الريسيل الأساسية أولاً"); return; }
+            if(!code || !area) { window.showToast("أدخل بيانات وحدة الريسيل الأساسية أولاً", "error"); return; }
             
             await addDoc(collection(db, 'resale'), {
                 code: code,
@@ -1338,7 +1402,7 @@
                 finish: finish,
                 time: serverTimestamp()
             });
-            alert("تم حفظ وحدة الريسيل بنجاح 🔄");
+            window.showToast("تم حفظ وحدة الريسيل بنجاح 🔄", "success");
             e.target.reset();
         };
 
@@ -1353,7 +1417,7 @@
                     finish: item.finish || 'طوب أحمر',
                     time: serverTimestamp()
                 });
-                alert('تم التحويل للريسيل بنجاح 🔄');
+                window.showToast('تم التحويل للريسيل بنجاح 🔄', 'success');
             }
         };
 
@@ -1363,19 +1427,20 @@
                 selectedMonthsForReport.push(mStr);
                 window.populateMonthFilters();
                 window.updateReportData();
+                window.showToast("تم إضافة الشهر للأرشيف مؤقتاً", "success");
             } else if(mStr) {
-                alert("صيغة غير صحيحة، برجاء الالتزام بالمثال (2025-12).");
+                window.showToast("صيغة غير صحيحة، برجاء الالتزام بالمثال (2025-12).", "error");
             }
         };
 
         window.renderResale = () => { document.getElementById('resaleItemsList').innerHTML = resaleStore.map(item => `<div class="bg-white p-4 rounded-[2rem] border-r-[12px] border-navy shadow-md mb-3 flex justify-between items-center border border-slate-100 text-right font-black italic"><div class="flex-1 font-black"><div><span class="text-navy text-xl font-black italic">كود: ${item.code}</span><span class="bg-slate-400 text-white text-[10px] px-4 py-1 rounded-full uppercase italic ml-2">${item.finish}</span></div><p class="text-xs text-slate-500 mt-1">📍 ${item.area} | 📐 ${item.size}م</p></div><div class="flex items-center gap-3"><div class="text-navy font-black text-lg">${Number(item.price).toLocaleString('en-US')}ج</div><button onclick="window.openCalc(${item.price}, '${item.code}', '${item.area}', ${item.size})" class="bg-navy text-white px-8 py-2 rounded-2xl shadow-md uppercase italic font-black">احسب / إرسال</button>${currentUserRole === 'admin' ? `<button onclick="deleteResale('${item.id}')" class="text-red-500 text-xs font-black">حذف</button>` : ''}</div></div>`).join(''); };
-        window.deleteResale = async (id) => { if(confirm('حذف وحدة الريسيل نهائياً؟')) await deleteDoc(doc(db,'resale',id)); };
+        window.deleteResale = async (id) => { if(confirm('حذف وحدة الريسيل نهائياً؟')) { await deleteDoc(doc(db,'resale',id)); window.showToast("تم الحذف بنجاح", "success"); } };
         window.logout = () => signOut(auth).then(() => { location.reload(); });
 
         window.tabDragStart = (e, i) => e.dataTransfer.setData('idx', i);
         window.tabDrop = async (e, to) => { if(currentUserRole !== 'admin') return; const from = e.dataTransfer.getData('idx'); const allB = [...new Set(dataStore.map(i => i.area))]; let curO = buildingOrder.filter(b => b.includes(b)); allB.forEach(b => { if(!curO.includes(b)) curO.push(b); }); const [moved] = curO.splice(from, 1); curO.splice(to, 0, moved); buildingOrder = curO; await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder }); };
         window.startEditFinish = (id) => { if(currentUserRole==='admin'){ window.curId=id; document.getElementById('finishEditModal').style.display='flex'; } };
-        window.saveFinishChange = (v) => { updateDoc(doc(db,'properties',window.curId),{finish:v}); document.getElementById('finishEditModal').style.display='none'; window.addLog("تعديل تشطيب"); };
+        window.saveFinishChange = (v) => { updateDoc(doc(db,'properties',window.curId),{finish:v}); document.getElementById('finishEditModal').style.display='none'; window.addLog("تعديل تشطيب"); window.showToast("تم تعديل التشطيب", "success"); };
         window.addLog = async (m) => await addDoc(collection(db,'notifications'),{message:m, time:serverTimestamp()});
         
         window.toggleAdminReportModal = () => {
@@ -1535,11 +1600,11 @@
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
 
             navigator.clipboard.writeText(message).then(() => {
-                alert("عاش يا فنان! 🚀\nالرسالة جهزت بكل الأنظمة اللي اخترتها. جاري فتح الواتساب...");
+                window.showToast("الرسالة جهزت! جاري فتح الواتساب...", "success");
                 window.open(whatsappUrl, '_blank');
                 document.getElementById('calcModal').style.display='none';
             }).catch(err => {
-                alert("تم التجهيز! جاري فتح الواتساب...");
+                window.showToast("الرسالة جهزت! جاري فتح الواتساب...", "success");
                 window.open(whatsappUrl, '_blank');
             });
         };
@@ -1581,12 +1646,13 @@
             if(confirm(`هل أنت متأكد من حذف الشقة (كود: ${code}) نهائياً؟`)) {
                 await deleteDoc(doc(db, 'properties', id));
                 window.addLog(`تم حذف شقة كود: ${code}`);
+                window.showToast(`تم حذف الوحدة ${code} بنجاح`, "success");
             }
         };
 
         window.deleteCurrentBuilding = async () => {
             if (activeTab === 'الكل' || activeTab === 'التجاري العام 🏢') {
-                alert('رجاءً اختر عمارة محددة من القائمة (التابات) لحذفها بالكامل.');
+                window.showToast('رجاءً اختر عمارة محددة من القائمة لحذفها بالكامل.', 'error');
                 return;
             }
             
@@ -1605,13 +1671,16 @@
                 await setDoc(doc(db, 'settings', 'buildingOrder'), { order: buildingOrder });
                 
                 window.addLog(`تم حذف عمارة بالكامل: ${activeTab}`);
-                alert(`تم حذف عمارة ${activeTab} بنجاح!`);
+                window.showToast(`تم حذف عمارة ${activeTab} بنجاح!`, "success");
                 window.setTab('الكل'); 
             }
         };
     </script>
 </head>
 <body class="bg-slate-50 text-right font-sans">
+    <!-- حاوية الإشعارات الجديدة (Toasts) -->
+    <div id="toast-container" class="fixed top-5 left-1/2 transform -translate-x-1/2 z-[99999] flex flex-col gap-3 pointer-events-none"></div>
+
     <div id="loginSection" class="min-h-screen flex items-center justify-center p-4 font-black">
         <form onsubmit="handleAuth(event)" class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border-t-8 border-navy">
             <h2 class="text-4xl font-black text-navy mb-6 font-serif uppercase tracking-tighter italic">Inventory</h2>
@@ -1958,7 +2027,6 @@
 
             <div class="overflow-y-auto scrollbar-hide flex-1 pr-1 space-y-3.5 font-black italic text-right pb-2">
                 
-                <!-- القسم الجديد: اختيار الأنظمة للرسالة (Checkboxes) -->
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
                     <label class="text-[11px] text-navy block mb-2 font-black border-b border-slate-200 pb-1 flex items-center gap-1">
                         💳 حدد الأنظمة لإضافتها في رسالة العميل:
@@ -2019,7 +2087,7 @@
             
             <div class="mt-3 space-y-2 shrink-0 border-t border-slate-100 pt-3">
                 <button onclick="window.generateAndSendToMap()" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-black shadow-lg uppercase text-xs italic transition flex justify-center items-center gap-2">
-                    📲 نسخ وفتح الواتساب (بالأنظمة المحددة)
+                    📲 نسخ وفتح الواتساب
                 </button>
                 <button onclick="document.getElementById('calcModal').style.display='none'" class="w-full bg-slate-100 text-slate-600 border border-slate-200 py-2.5 rounded-xl font-black shadow-sm uppercase text-xs italic transition hover:bg-slate-200">إغلاق</button>
             </div>
