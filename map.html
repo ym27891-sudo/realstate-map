@@ -13,7 +13,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; position: relative; }
         
-        /* العلامة المائية الفخمة */
         .map-watermark {
             position: absolute;
             top: 50%;
@@ -153,7 +152,7 @@
     </div>
 
     <div id="main-container">
-        <!-- العلامة المائية الفخمة -->
+        <!-- العلامة المائية הפخمة -->
         <div class="map-watermark">عقاري اليوم</div>
         
         <div id="floating-sales-badge">
@@ -342,7 +341,8 @@
         const db = firebase.firestore();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const isCustomerLink = urlParams.has('sales_name'); 
+        // التعديل السحري: هل اللينك ده مشفر؟ لو أيوة، يبقى ده لينك مبعوت لعميل
+        const isCustomerLink = urlParams.has('v'); 
 
         if (!isCustomerLink) {
             firebase.auth().onAuthStateChanged(async (user) => {
@@ -377,6 +377,7 @@
         let currentSelectedBuildingData = null; 
         
         window.currentBookingAptCode = "";
+        window.customPaymentData = null;
 
         let currentSidebarBuildingImages = [];
         let currentSizeTemplates = {}; 
@@ -808,14 +809,13 @@
             const aptPayment = override.payment || template.payment || "كاش أو تقسيط";
             const aptImages = (override.images && override.images.length > 0) ? override.images : (template.images || []);
 
-            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل الوحدة`;
+            document.getElementById('apt-modal-title').innerText = `🏢 تفاصيل الوحدة السكنية`;
             document.getElementById('apt-modal-code').innerText = `كود: ${apt.code}`;
             document.getElementById('apt-modal-view').innerText = aptView;
             document.getElementById('apt-modal-rooms').innerText = aptRooms;
             document.getElementById('apt-modal-price').innerText = `السعر الأصلي: ${Number(apt.price).toLocaleString('en-US')} ج`;
             document.getElementById('apt-modal-payment').innerText = `💳 الأنظمة المتوفرة: ${aptPayment}`;
             
-            // رابط الـ GPS بدبوس مباشر (عشان يحدد موقع العميل أوتوماتيك من موبايله)
             document.getElementById('gps-link').href = `https://maps.google.com/?q=${mapB.coords[0]},${mapB.coords[1]}`;
             
             // إخفاء الـ GPS لو اللينك ده مبعوت لعميل
@@ -833,17 +833,16 @@
                 gallery.innerHTML = '<p style="color:#94a3b8; font-size:12px;">📸 لم يتم تخصيص صور داخلية لهذه المساحة بعد.</p>';
             }
 
-            const urlParams = new URLSearchParams(window.location.search);
             const customPaymentZone = document.getElementById('custom-payment-zone');
             
-            if(urlParams.has('total') && urlParams.get('code') === apt.code) {
+            if(window.customPaymentData && window.currentBookingAptCode === apt.code) {
                 document.getElementById('apt-modal-payment').style.display = 'none'; 
                 customPaymentZone.style.display = 'block'; 
                 
-                document.getElementById('view-total-price').innerText = `إجمالي العرض المحسوب: ${Number(urlParams.get('total')).toLocaleString()} ج.م`;
-                document.getElementById('view-down-payment').innerText = `المقدم المطلوب للتنفيذ: ${Number(urlParams.get('down')).toLocaleString()} ج.م`;
-                document.getElementById('view-monthly-installment').innerText = `القسط الشهري الثابت: ${Number(urlParams.get('monthly')).toLocaleString()} ج.م`;
-                document.getElementById('view-months-count').innerText = `مدة القسط المتفق عليها: ${urlParams.get('months')} شهر`;
+                document.getElementById('view-total-price').innerText = `إجمالي العرض المحسوب: ${Number(window.customPaymentData.total).toLocaleString()} ج.م`;
+                document.getElementById('view-down-payment').innerText = `المقدم المطلوب للتنفيذ: ${Number(window.customPaymentData.down).toLocaleString()} ج.م`;
+                document.getElementById('view-monthly-installment').innerText = `القسط الشهري الثابت: ${Number(window.customPaymentData.monthly).toLocaleString()} ج.م`;
+                document.getElementById('view-months-count').innerText = `مدة القسط المتفق عليها: ${window.customPaymentData.months} شهر`;
             } else {
                 document.getElementById('apt-modal-payment').style.display = 'inline-block';
                 customPaymentZone.style.display = 'none';
@@ -909,33 +908,55 @@
 
         window.checkUrlParametersAndRedirect = () => {
             const urlParams = new URLSearchParams(window.location.search);
-            if(urlParams.has('sales_name')) {
-                currentSalesData.name = urlParams.get('sales_name');
-                currentSalesData.phone = urlParams.get('sales_phone') || "01000000000";
-                currentSalesData.whatsapp = urlParams.get('sales_ws') || "201000000000";
-                
-                const floatingBadge = document.getElementById('floating-sales-badge');
-                document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
-                floatingBadge.style.display = 'block';
-            }
+            
+            // فك التشفير واستخراج الداتا
+            if(urlParams.has('v')) {
+                try {
+                    const decodedData = JSON.parse(decodeURIComponent(escape(atob(urlParams.get('v')))));
+                    
+                    currentSalesData.name = decodedData.sn;
+                    currentSalesData.phone = decodedData.sp || "01000000000";
+                    currentSalesData.whatsapp = decodedData.sw || "201000000000";
+                    
+                    // لو ده عرض أسعار فيه مساحة مقفولة
+                    if(decodedData.t && decodedData.d) {
+                        window.customPaymentData = {
+                            total: decodedData.t,
+                            down: decodedData.d,
+                            months: decodedData.m,
+                            monthly: decodedData.mo
+                        };
+                    } else if (decodedData.mode === 'preview') {
+                        // وضع معاينة للسيلز (لا يفتح شقة معينة)
+                        const floatingBadge = document.getElementById('floating-sales-badge');
+                        document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
+                        floatingBadge.style.display = 'block';
+                        return; 
+                    }
 
-            if(urlParams.has('area')) {
-                const targetArea = urlParams.get('area');
-                const targetCode = urlParams.get('code');
-                
-                const mapB = mapBuildings.find(b => b.name === targetArea);
-                if(mapB) {
-                    map.flyTo(mapB.coords, 18, { animate: true, duration: 2 });
+                    const floatingBadge = document.getElementById('floating-sales-badge');
+                    document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
+                    floatingBadge.style.display = 'block';
+
+                    const targetArea = decodedData.a;
+                    const targetCode = decodedData.c;
                     
-                    const bApts = inventoryProperties.filter(p => (p.area || '').trim() === mapB.name && p.status === 'متاح');
-                    
-                    setTimeout(() => {
-                        window.openBuildingModal(mapB, bApts);
-                        const targetApt = bApts.find(a => a.code === targetCode);
-                        if(targetApt) {
-                            setTimeout(() => { window.openApartmentModal(targetApt.code); }, 800);
-                        }
-                    }, 2200);
+                    const mapB = mapBuildings.find(b => b.name === targetArea);
+                    if(mapB) {
+                        map.flyTo(mapB.coords, 18, { animate: true, duration: 2 });
+                        
+                        const bApts = inventoryProperties.filter(p => (p.area || '').trim() === mapB.name && p.status === 'متاح');
+                        
+                        setTimeout(() => {
+                            window.openBuildingModal(mapB, bApts);
+                            const targetApt = bApts.find(a => a.code === targetCode);
+                            if(targetApt) {
+                                setTimeout(() => { window.openApartmentModal(targetApt.code); }, 800);
+                            }
+                        }, 2200);
+                    }
+                } catch(e) {
+                    console.error("رابط غير صالح أو تالف", e);
                 }
             }
         };
