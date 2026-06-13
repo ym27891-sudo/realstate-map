@@ -989,7 +989,7 @@
             window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
         };
 
-        // دالة المٌحلل الذكي المشتركة لمعالجة الداتا بمسطرة واحدة
+        // 🧠 المُحلل الذكي الجبار - اتعمل عشان يفرمت كل فواصل الشيت المصري المعقدة
         const processSheetData = async (j) => {
             let batches = [];
             let currentBatch = writeBatch(db);
@@ -998,17 +998,17 @@
             let updatedCount = 0;
 
             const normalizeKey = (str) => {
-                return str.replace(/[\r\n\s_]+/g, '')
-                          .replace(/[أإآا]/g, 'ا')
-                          .replace(/[ةه]/g, 'ه')
-                          .replace(/[يى]/g, 'ي');
+                return String(str).replace(/[\r\n\s_]+/g, '')
+                                  .replace(/[أإآا]/g, 'ا')
+                                  .replace(/[ةه]/g, 'ه')
+                                  .replace(/[يى]/g, 'ي');
             };
 
             const parseSafePrice = (val) => {
                 if(typeof val === 'number') return Math.round(val);
                 if(!val) return 0;
                 let s = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
-                s = s.replace(/[^0-9]/g, ''); // بيشيل النقط والفواصل
+                s = s.replace(/[^0-9]/g, ''); 
                 return parseInt(s) || 0;
             };
 
@@ -1021,57 +1021,75 @@
             };
 
             for(let i of j) {
-                let rowClean = {};
+                let rawCode = '';
+                let rawUnitNum = '';
+                let bldAreaPart1 = '';
+                let bldAreaPart2 = '';
+                let p = 0;
+                let s = 0;
+                let up = 0;
+                let flr = '-';
+                let fin = 'طوب أحمر';
+                let rawStat = 'متاح';
+                let buyer = '';
+
                 for(let key in i) {
-                    rowClean[normalizeKey(key)] = i[key];
+                    let val = i[key];
+                    if (val === undefined || val === null) continue;
+                    let cleanKey = normalizeKey(key);
+                    let strVal = String(val).trim();
+
+                    if (cleanKey === 'كودالوحده' || cleanKey === 'الكود' || cleanKey === 'code') rawCode = strVal;
+                    else if (cleanKey === 'رقمالوحده') rawUnitNum = strVal;
+                    else if (cleanKey.includes('اجماليسعر') || cleanKey === 'السعر') p = parseSafePrice(val);
+                    else if (cleanKey.includes('مساحه') || cleanKey === 'size') s = parseSafeSize(val);
+                    else if (cleanKey.includes('سعرالمتر')) up = parseSafePrice(val);
+                    else if (cleanKey === 'رقمالعماره' || cleanKey === 'العماره' || cleanKey === 'منطقه') bldAreaPart1 = strVal;
+                    else if (cleanKey === 'منطقهرقم' || cleanKey === 'م') bldAreaPart2 = strVal;
+                    else if (cleanKey.includes('اسمالدور') || cleanKey === 'الدور') {
+                         if(strVal !== '-' && flr === '-') flr = strVal; 
+                         else if (strVal !== '-' && flr !== '-' && cleanKey.includes('بيعي')) flr = strVal;
+                    }
+                    else if (cleanKey.includes('تشطيب')) fin = strVal;
+                    else if (cleanKey.includes('حالهالوحده') || cleanKey === 'الحاله' || cleanKey === 'status') {
+                         let sLower = strVal.toLowerCase().replace(/[\r\n]+/g, ' ');
+                         if (sLower.includes('غير متاح') || sLower.includes('هولد') || sLower.includes('مغلق') || sLower.includes('محجوز') || sLower.includes('حجز')) {
+                             rawStat = 'تم الحجز';
+                         } else if (sLower.includes('تعاقد') || sLower.includes('مباع')) {
+                             rawStat = 'تم البيع';
+                         } else {
+                             rawStat = 'متاح';
+                         }
+                    }
+                    else if (cleanKey.includes('اسمالعميل') || cleanKey.includes('المشتري')) buyer = strVal;
                 }
 
-                const rawCode = String(rowClean['كودالوحده'] || rowClean['الكود'] || rowClean['code'] || '').trim();
-                if(!rawCode) continue;
-
-                // البحث عن مفتاح السعر بمرونة أكبر (أي عمود بيحتوي على إجمالي السعر)
-                let priceKey = Object.keys(rowClean).find(k => k.includes('اجماليسعر')) || 'السعر';
-                const p = parseSafePrice(rowClean[priceKey] || rowClean['السعر'] || rowClean['price']);
+                let searchCode1 = rawCode;
+                let searchCode2 = rawUnitNum;
                 
-                let sizeKey = Object.keys(rowClean).find(k => k.includes('مساحه')) || 'المساحه';
-                const s = parseSafeSize(rowClean[sizeKey] || rowClean['size']);
-                
-                let upKey = Object.keys(rowClean).find(k => k.includes('سعرالمتر')) || 'سعرالمتر';
-                const up = parseSafePrice(rowClean[upKey] || rowClean['unitprice']);
-                
-                let bldArea = '';
-                if (rowClean['رقمالعماره']) {
-                    bldArea = String(rowClean['رقمالعماره']) + (rowClean['م'] ? ' ' + String(rowClean['م']).replace(/[()]/g, '') : '');
-                } else {
-                    let bldAreaKey = Object.keys(rowClean).find(k => k.includes('العماره') || k.includes('مشروع')) || 'area';
-                    bldArea = String(rowClean[bldAreaKey] || '');
-                }
+                if (!searchCode1 && !searchCode2) continue;
 
-                const flr = String(rowClean['اسمالدوربيعي'] || rowClean['اسمالدورفيالرخصه'] || rowClean['الدور'] || rowClean['floor'] || '-');
-                const fin = String(rowClean['نوعالتشطيب'] || rowClean['التشطيب'] || rowClean['finish'] || 'طوب أحمر');
+                let mainCodeToSave = searchCode1 || searchCode2;
 
-                let rawStatKey = Object.keys(rowClean).find(k => k.includes('حالهالوحده') || k.includes('حاله')) || 'status';
-                let rawStat = String(rowClean[rawStatKey] || 'متاح').toLowerCase().trim();
-                
-                let finalStatus = 'متاح';
-                if (rawStat.includes('غيرمتاح') || rawStat.includes('محجوز') || rawStat.includes('حجز') || rawStat.includes('مغلق') || rawStat.includes('هولد')) {
-                    finalStatus = 'تم الحجز';
-                } else if ((rawStat.includes('تعاقد') || rawStat.includes('مباع') || rawStat.includes('بيع')) && !rawStat.includes('متاح')) {
-                    finalStatus = 'تم البيع';
-                }
+                let bldArea = bldAreaPart1;
+                if (bldAreaPart2) bldArea += ' ' + bldAreaPart2.replace(/[()]/g, '');
+                if (!bldArea) bldArea = 'غير محدد';
 
-                const buyer = finalStatus !== 'متاح' ? String(rowClean['اسمالعميل'] || rowClean['buyername'] || '') : '';
-
-                const existingProp = dataStore.find(prop => prop.code === rawCode);
+                // البحث الدقيق لعدم تكرار الوحدة: بيطابق كود الوحدة الكامل أو رقم الوحدة المختصر
+                const existingProp = dataStore.find(prop => {
+                    let dbCode = String(prop.code).trim().toLowerCase();
+                    return (searchCode1 && dbCode === searchCode1.toLowerCase()) || 
+                           (searchCode2 && dbCode === searchCode2.toLowerCase());
+                });
 
                 if (existingProp) {
                     const docRef = doc(db, 'properties', existingProp.id);
+                    
                     let statusToSave = existingProp.status;
-                    if (existingProp.status === 'متاح' && finalStatus !== 'متاح') {
-                        statusToSave = finalStatus;
+                    if (existingProp.status === 'متاح' && rawStat !== 'متاح') {
+                        statusToSave = rawStat;
                     }
 
-                    // لا نحدث السعر إلا لو كان أكبر من 0 عشان منبوظش الداتا بالغلط
                     let updateData = {
                         area: bldArea || existingProp.area,
                         floor: flr !== '-' ? flr : existingProp.floor,
@@ -1088,14 +1106,14 @@
                 } else {
                     const newDocRef = doc(collection(db, 'properties'));
                     currentBatch.set(newDocRef, {
-                        code: rawCode,
-                        area: bldArea || 'غير محدد',
+                        code: mainCodeToSave,
+                        area: bldArea,
                         size: s,
                         floor: flr,
                         price: p,
                         unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0),
                         finish: fin,
-                        status: finalStatus,
+                        status: rawStat,
                         buyerName: buyer,
                         salesName: '',
                         statusDate: '',
@@ -1142,8 +1160,13 @@
                 const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
                 let headerRowIndex = 0;
                 
+                // تحديد صف العناوين بدقة متناهية
                 for (let r = 0; r < rawData.length; r++) {
-                    if (rawData[r].some(cell => typeof cell === 'string' && (cell.includes('كود') || cell.includes('الكود') || cell.toLowerCase() === 'code'))) {
+                    if (rawData[r] && rawData[r].some(cell => {
+                        if (typeof cell !== 'string') return false;
+                        let cleanCell = cell.replace(/[\r\n\s_]+/g, '').replace(/[أإآا]/g, 'ا');
+                        return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده');
+                    })) {
                         headerRowIndex = r;
                         break;
                     }
@@ -1173,7 +1196,11 @@
                     let headerRowIndex = 0;
                     
                     for (let r = 0; r < rawData.length; r++) {
-                        if (rawData[r].some(cell => typeof cell === 'string' && (cell.includes('كود') || cell.includes('الكود') || cell.toLowerCase() === 'code'))) {
+                        if (rawData[r] && rawData[r].some(cell => {
+                            if (typeof cell !== 'string') return false;
+                            let cleanCell = cell.replace(/[\r\n\s_]+/g, '').replace(/[أإآا]/g, 'ا');
+                            return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده');
+                        })) {
                             headerRowIndex = r;
                             break;
                         }
