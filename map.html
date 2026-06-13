@@ -13,6 +13,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; flex-direction: column; height: 100vh; background-color: #f8fafc; color: #1e293b; overflow: hidden; position: relative; }
         
+        /* العلامة المائية الفخمة */
         .map-watermark {
             position: absolute;
             top: 50%;
@@ -123,6 +124,10 @@
         .btn-gps { background: #f59e0b; min-width: 100%; margin-bottom: 5px; }
         .btn-gps:hover { background: #d97706; }
 
+        /* زراير العمارة (السيلز فقط) */
+        .building-action-btn { flex: 1; text-align: center; padding: 10px; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 13px; color: white; border: none; transition: all 0.2s; }
+        .building-action-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
         @media (max-width: 600px) {
             .modal-content { padding: 20px; width: 95%; max-height: 90vh; }
             #modal-b-name { font-size: 22px !important; }
@@ -232,6 +237,12 @@
             <div id="smart-badges-container" style="margin-top: 10px; display: flex; gap: 5px; flex-wrap: wrap;"></div>
             
             <div id="modal-b-desc-box" class="info-box" style="margin-top:15px; font-size:14px; color:#334155;"></div>
+
+            <!-- زراير اللوكيشن السريعة الخاصة بالسيلز (مخفية عن العميل) -->
+            <div id="building-action-buttons" style="display:flex; gap:8px; margin-top:15px; display:none;">
+                <button id="b-gps-btn" class="building-action-btn" style="background:#f59e0b;">📍 فتح الـ GPS للعمارة</button>
+                <button id="b-share-btn" class="building-action-btn" style="background:#2563eb;">📤 مشاركة اللوكيشن לعميل</button>
+            </div>
             
             <div id="floors-section" class="animated-section" style="margin-top:20px;">
                 <h3 style="margin-bottom: 15px; font-size: 18px; color: #475569;">⚙️ اختر الدور لمعاينة المساحات المتوفرة:</h3>
@@ -281,7 +292,7 @@
             <button onclick="window.openAppointmentModal()" class="btn-appointment">📅 حجز موعد لمعاينة الوحدة</button>
 
             <div class="action-buttons">
-                <!-- زر الـ GPS (يظهر للسيلز فقط، ومخفي عن العميل) -->
+                <!-- زر الـ GPS مخفي هنا أيضاً عن العميل وبيظهر للسيلز فقط -->
                 <a href="#" id="gps-link" target="_blank" class="action-btn btn-gps">📍 مسار الطريق للموقع (GPS)</a>
                 <a href="#" id="sidebar-call-btn" class="action-btn btn-call">📞 اتصل للحجز والاستعلام</a>
                 <a href="#" id="whatsapp-link" target="_blank" class="action-btn btn-whatsapp">💬 استفسر عبر واتساب</a>
@@ -341,7 +352,7 @@
         const db = firebase.firestore();
 
         const urlParams = new URLSearchParams(window.location.search);
-        // التعديل السحري: هل اللينك ده مشفر؟ لو أيوة، يبقى ده لينك مبعوت لعميل
+        // التعديل: لو اللينك مشفر بـ v، إذن هو لينك مبعوت لعميل
         const isCustomerLink = urlParams.has('v'); 
 
         if (!isCustomerLink) {
@@ -545,7 +556,7 @@
                     <div class="nested-box">
                         <strong style="color:#0284c7; display:block; margin-bottom:10px;">إعدادات مساحة ${size}م:</strong>
                         <input type="text" id="tpl-view-${size}" placeholder="الإطلالة (مثال: واجهة)" value="${tData.view}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'view', this.value)">
-                        <input type="text" id="tpl-rooms-${size}" placeholder="التقسيم (مثال: 3 غرف)" value="${tData.rooms}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'rooms', this.value)">
+                        <input type="text" id="tpl-rooms-${size}" placeholder="التقسيم (يتم سحبه تلقائياً، ويمكن التعديل)" value="${tData.rooms}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'rooms', this.value)">
                         <input type="text" id="tpl-payment-${size}" placeholder="نظام السداد الافتراضي" value="${tData.payment}" class="w-full mb-2 p-2 border rounded text-xs" onchange="window.updateTpl('${size}', 'payment', this.value)">
                         <input type="file" multiple accept="image/*" onchange="window.handleTplImages(this, '${size}')" class="w-full text-xs">
                         <div id="tpl-img-preview-${size}" class="image-preview">${tData.images.map(img => `<img src="${img}"/>`).join('')}</div>
@@ -714,6 +725,24 @@
                 statusZone.innerHTML = `<span class="status-construction">تحت الإنشاء 🏗️</span><p style="font-size:12px; margin-top:4px; color:#c2410c; font-weight:bold;">📅 التسليم: ${mapB.deliveryDate || 'قريباً'}</p>`;
             }
 
+            // إظهار زراير اللوكيشن السريعة للسيلز فقط
+            if (!isCustomerLink) {
+                document.getElementById('building-action-buttons').style.display = 'flex';
+                
+                document.getElementById('b-gps-btn').onclick = () => {
+                    window.open(`https://maps.google.com/?q=${mapB.coords[0]},${mapB.coords[1]}`, '_blank');
+                };
+
+                document.getElementById('b-share-btn').onclick = () => {
+                    const msg = `📍 موقع مشروع (${mapB.name}) - شركة عقاري اليوم:\nhttps://maps.google.com/?q=${mapB.coords[0]},${mapB.coords[1]}`;
+                    navigator.clipboard.writeText(msg).then(() => {
+                        alert('تم نسخ اللوكيشن بنجاح! تقدر تبعته للعميل دلوقتي.');
+                    });
+                };
+            } else {
+                document.getElementById('building-action-buttons').style.display = 'none';
+            }
+
             const gallery = document.getElementById('modal-b-gallery');
             gallery.innerHTML = '';
             if(mapB.images && mapB.images.length > 0) {
@@ -818,7 +847,6 @@
             
             document.getElementById('gps-link').href = `https://maps.google.com/?q=${mapB.coords[0]},${mapB.coords[1]}`;
             
-            // إخفاء الـ GPS لو اللينك ده مبعوت لعميل
             if (isCustomerLink) {
                 document.getElementById('gps-link').style.display = 'none';
             } else {
@@ -909,7 +937,6 @@
         window.checkUrlParametersAndRedirect = () => {
             const urlParams = new URLSearchParams(window.location.search);
             
-            // فك التشفير واستخراج الداتا
             if(urlParams.has('v')) {
                 try {
                     const decodedData = JSON.parse(decodeURIComponent(escape(atob(urlParams.get('v')))));
@@ -918,7 +945,6 @@
                     currentSalesData.phone = decodedData.sp || "01000000000";
                     currentSalesData.whatsapp = decodedData.sw || "201000000000";
                     
-                    // لو ده عرض أسعار فيه مساحة مقفولة
                     if(decodedData.t && decodedData.d) {
                         window.customPaymentData = {
                             total: decodedData.t,
@@ -927,7 +953,6 @@
                             monthly: decodedData.mo
                         };
                     } else if (decodedData.mode === 'preview') {
-                        // وضع معاينة للسيلز (لا يفتح شقة معينة)
                         const floatingBadge = document.getElementById('floating-sales-badge');
                         document.getElementById('floating-sales-name').innerText = `👤 ${currentSalesData.name}`;
                         floatingBadge.style.display = 'block';
