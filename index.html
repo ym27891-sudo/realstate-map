@@ -809,7 +809,7 @@
             
             if (topSalesContainer) {
                 let sortedSales = Object.keys(salesVolumeStats).map(name => ({ name, volume: salesVolumeStats[name] }))
-                                                                    .sort((a, b) => b.volume - a.volume).slice(0, 3);
+                                                                  .sort((a, b) => b.volume - a.volume).slice(0, 3);
                 
                 if (sortedSales.length === 0) {
                     topSalesContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا يوجد حجم مبيعات موثق حالياً</p>`;
@@ -826,7 +826,7 @@
 
             if (topTeamContainer) {
                 let sortedTeams = Object.keys(teamVolumeStats).map(name => ({ name, volume: teamVolumeStats[name] }))
-                                                                    .sort((a, b) => b.volume - a.volume);
+                                                                  .sort((a, b) => b.volume - a.volume);
                 
                 if (sortedTeams.length === 0) {
                     topTeamContainer.innerHTML = `<p class="text-slate-400 italic text-xs py-4 text-center">لا توجد فرق محققة أهداف مبيعات</p>`;
@@ -989,7 +989,7 @@
             window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
         };
 
-        // 🧠 المُحلل الذكي الجبار - اتعمل عشان يفرمت كل فواصل الشيت المصري المعقدة
+        // 🧠 المُحلل الذكي الجبار - معدل ليقرأ الأكواد والأسعار بذكاء صارم
         const processSheetData = async (j) => {
             let batches = [];
             let currentBatch = writeBatch(db);
@@ -997,11 +997,18 @@
             let addedCount = 0;
             let updatedCount = 0;
 
+            // توحيد مفاتيح البحث
             const normalizeKey = (str) => {
                 return String(str).replace(/[\r\n\s_]+/g, '')
                                   .replace(/[أإآا]/g, 'ا')
                                   .replace(/[ةه]/g, 'ه')
-                                  .replace(/[يى]/g, 'ي');
+                                  .replace(/[يى]/g, 'ي')
+                                  .toLowerCase();
+            };
+
+            // توحيد أكواد المقارنة (إزالة المسافات، الأقواس، الرموز)
+            const normalizeCodeForMatch = (c) => {
+                return String(c || '').replace(/[^a-zA-Z0-9ا-ي]/g, '').toLowerCase();
             };
 
             const parseSafePrice = (val) => {
@@ -1039,19 +1046,19 @@
                     let cleanKey = normalizeKey(key);
                     let strVal = String(val).trim();
 
-                    if (cleanKey === 'كودالوحده' || cleanKey === 'الكود' || cleanKey === 'code') rawCode = strVal;
-                    else if (cleanKey === 'رقمالوحده') rawUnitNum = strVal;
-                    else if (cleanKey.includes('اجماليسعر') || cleanKey === 'السعر') p = parseSafePrice(val);
+                    if (cleanKey.includes('كود')) rawCode = strVal;
+                    else if (cleanKey.includes('رقمالوحده')) rawUnitNum = strVal;
+                    else if (cleanKey.includes('متر')) up = parseSafePrice(val);
+                    else if (cleanKey.includes('اجماليسعر') || cleanKey.includes('سعرالوحده') || cleanKey === 'السعر' || cleanKey.includes('price')) p = parseSafePrice(val);
                     else if (cleanKey.includes('مساحه') || cleanKey === 'size') s = parseSafeSize(val);
-                    else if (cleanKey.includes('سعرالمتر')) up = parseSafePrice(val);
-                    else if (cleanKey === 'رقمالعماره' || cleanKey === 'العماره' || cleanKey === 'منطقه') bldAreaPart1 = strVal;
+                    else if (cleanKey.includes('عماره') || cleanKey === 'منطقه') bldAreaPart1 = strVal;
                     else if (cleanKey === 'منطقهرقم' || cleanKey === 'م') bldAreaPart2 = strVal;
-                    else if (cleanKey.includes('اسمالدور') || cleanKey === 'الدور') {
+                    else if (cleanKey.includes('اسمالدور') || cleanKey === 'الدور' || cleanKey.includes('دور')) {
                          if(strVal !== '-' && flr === '-') flr = strVal; 
                          else if (strVal !== '-' && flr !== '-' && cleanKey.includes('بيعي')) flr = strVal;
                     }
                     else if (cleanKey.includes('تشطيب')) fin = strVal;
-                    else if (cleanKey.includes('حالهالوحده') || cleanKey === 'الحاله' || cleanKey === 'status') {
+                    else if (cleanKey.includes('حاله') || cleanKey === 'status') {
                          let sLower = strVal.toLowerCase().replace(/[\r\n]+/g, ' ');
                          if (sLower.includes('غير متاح') || sLower.includes('هولد') || sLower.includes('مغلق') || sLower.includes('محجوز') || sLower.includes('حجز')) {
                              rawStat = 'تم الحجز';
@@ -1061,25 +1068,24 @@
                              rawStat = 'متاح';
                          }
                     }
-                    else if (cleanKey.includes('اسمالعميل') || cleanKey.includes('المشتري')) buyer = strVal;
+                    else if (cleanKey.includes('عميل') || cleanKey.includes('مشتري')) buyer = strVal;
                 }
 
-                let searchCode1 = rawCode;
-                let searchCode2 = rawUnitNum;
+                let searchCode1 = rawCode ? normalizeCodeForMatch(rawCode) : '';
+                let searchCode2 = rawUnitNum ? normalizeCodeForMatch(rawUnitNum) : '';
                 
                 if (!searchCode1 && !searchCode2) continue;
 
-                let mainCodeToSave = searchCode1 || searchCode2;
+                let mainCodeToSave = rawCode || rawUnitNum;
 
                 let bldArea = bldAreaPart1;
                 if (bldAreaPart2) bldArea += ' ' + bldAreaPart2.replace(/[()]/g, '');
                 if (!bldArea) bldArea = 'غير محدد';
 
-                // البحث الدقيق لعدم تكرار الوحدة: بيطابق كود الوحدة الكامل أو رقم الوحدة المختصر
                 const existingProp = dataStore.find(prop => {
-                    let dbCode = String(prop.code).trim().toLowerCase();
-                    return (searchCode1 && dbCode === searchCode1.toLowerCase()) || 
-                           (searchCode2 && dbCode === searchCode2.toLowerCase());
+                    let dbCode = normalizeCodeForMatch(prop.code);
+                    return (searchCode1 && dbCode === searchCode1) || 
+                           (searchCode2 && dbCode === searchCode2);
                 });
 
                 if (existingProp) {
@@ -1088,14 +1094,16 @@
                     let statusToSave = existingProp.status;
                     if (existingProp.status === 'متاح' && rawStat !== 'متاح') {
                         statusToSave = rawStat;
+                    } else if (existingProp.status !== 'متاح' && rawStat === 'متاح') {
+                        statusToSave = 'متاح';
                     }
 
                     let updateData = {
-                        area: bldArea || existingProp.area,
+                        area: bldArea !== 'غير محدد' ? bldArea : existingProp.area,
                         floor: flr !== '-' ? flr : existingProp.floor,
                         finish: fin !== 'طوب أحمر' ? fin : existingProp.finish,
                         status: statusToSave,
-                        buyerName: existingProp.buyerName || buyer
+                        buyerName: buyer || existingProp.buyerName 
                     };
                     if (p > 0) updateData.price = p;
                     if (s > 0) updateData.size = s;
@@ -1142,6 +1150,15 @@
             return { addedCount, updatedCount };
         };
 
+        const normalizeHeaderCellForDetection = (cell) => {
+            if (typeof cell !== 'string') return '';
+            return cell.replace(/[\r\n\s_]+/g, '')
+                       .replace(/[أإآا]/g, 'ا')
+                       .replace(/[ةه]/g, 'ه')
+                       .replace(/[يى]/g, 'ي')
+                       .toLowerCase();
+        };
+
         window.syncFromOnlineSheet = async () => {
             if (!savedOnlineSheetUrl) {
                 alert("لازم تحط لينك الـ CSV في الخانة المخصصة وتدوس 'حفظ اللينك' الأول!");
@@ -1160,12 +1177,11 @@
                 const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
                 let headerRowIndex = 0;
                 
-                // تحديد صف العناوين بدقة متناهية
+                // تحديد صف العناوين بذكاء (تم إصلاح مشكلة التاء المربوطة)
                 for (let r = 0; r < rawData.length; r++) {
                     if (rawData[r] && rawData[r].some(cell => {
-                        if (typeof cell !== 'string') return false;
-                        let cleanCell = cell.replace(/[\r\n\s_]+/g, '').replace(/[أإآا]/g, 'ا');
-                        return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده');
+                        let cleanCell = normalizeHeaderCellForDetection(cell);
+                        return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده') || cleanCell.includes('كود');
                     })) {
                         headerRowIndex = r;
                         break;
@@ -1197,9 +1213,8 @@
                     
                     for (let r = 0; r < rawData.length; r++) {
                         if (rawData[r] && rawData[r].some(cell => {
-                            if (typeof cell !== 'string') return false;
-                            let cleanCell = cell.replace(/[\r\n\s_]+/g, '').replace(/[أإآا]/g, 'ا');
-                            return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده');
+                            let cleanCell = normalizeHeaderCellForDetection(cell);
+                            return cleanCell.includes('كودالوحده') || cleanCell.includes('رقمالوحده') || cleanCell.includes('كود');
                         })) {
                             headerRowIndex = r;
                             break;
@@ -1716,7 +1731,6 @@
         <button id="commToggleBtn" onclick="toggleCommView()" class="hidden bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-black mb-4 shadow-lg hover:bg-navy transition font-black italic uppercase">🏢 عرض التجاري</button>
 
         <div id="adminArea" class="hidden mb-6 space-y-3 font-black">
-            <!-- قسم ربط جوجل شيت الأونلاين -->
             <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 shadow-sm mb-2">
                 <label class="text-[10px] text-indigo-800 block mb-2 font-black uppercase">🔗 لينك مزامنة جوجل شيت الأونلاين (بصيغة CSV):</label>
                 <div class="flex gap-2">
@@ -1728,7 +1742,6 @@
                 </button>
             </div>
 
-             <!-- زرار الرفع اليدوي شغال بنفس الذكاء -->
              <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center shadow-sm hover:bg-slate-50 transition">
                 <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest flex justify-center items-center gap-2">
                     📁 رفع شيت إكسيل يدوي (Bulk Upload)
@@ -1978,7 +1991,6 @@
         </div>
     </div>
 
-    <!-- الآلة الحاسبة و تجهيز الرسالة -->
     <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[10001] font-black uppercase italic">
         <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md relative border-t-8 border-navy p-4 sm:p-5 text-right font-black max-h-[95vh] flex flex-col">
             <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black z-10">×</button>
@@ -1988,7 +2000,6 @@
 
             <div class="overflow-y-auto scrollbar-hide flex-1 pr-1 space-y-3.5 font-black italic text-right pb-2">
                 
-                <!-- القسم الجديد: اختيار الأنظمة للرسالة (Checkboxes) -->
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
                     <label class="text-[11px] text-navy block mb-2 font-black border-b border-slate-200 pb-1 flex items-center gap-1">
                         💳 حدد الأنظمة لإضافتها في رسالة العميل:
