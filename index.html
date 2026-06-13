@@ -114,7 +114,6 @@
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
         };
-        // ----------------------------------------------
 
         function cleanToEngNum(str) {
             if(!str) return '';
@@ -1038,7 +1037,7 @@
             window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
         };
 
-        // --- المحلل الخارق الجديد (الخطة البديلة للتعرف على الشيت بدون تعديل الإكسيل) ---
+        // --- دوال التحليل ومعالجة الأرقام الصارمة ---
         const normalizeString = (str) => {
             if (str === null || str === undefined) return '';
             return String(str).replace(/[\r\n\s_]+/g, '')
@@ -1048,12 +1047,24 @@
                               .toLowerCase();
         };
 
-        const parseNum = (val) => {
+        // شفاط الأسعار: بيتجاهل أي نقط (.) أو فواصل (,) وبيأخد الرقم ككتلة واحدة (عشان نعالج مشكلة 5.265.000)
+        const parsePrice = (val) => {
             if (typeof val === 'number') return Math.round(val);
             if (!val) return 0;
             let s = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
-            s = s.replace(/[^0-9.]/g, ''); 
-            return parseFloat(s) || 0;
+            s = s.replace(/[^0-9]/g, ''); // يمسح كل حاجة ما عدا الأرقام الصريحة
+            return parseInt(s, 10) || 0;
+        };
+
+        // شفاط المساحات: بيسمح بالعلامة العشرية للمساحات زي 135.5
+        const parseSize = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            let s = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+            s = s.replace(/[^0-9.,]/g, ''); // يسيب الأرقام والنقط والفواصل بس
+            s = s.replace(/,/g, '.'); // يقلب الفاصلة لنقطة عشان JavaScript تفهمها ككسر عشري
+            let match = s.match(/\d+(\.\d+)?/);
+            return match ? parseFloat(match[0]) : 0;
         };
 
         const processSheetData = async (rawData) => { 
@@ -1066,7 +1077,6 @@
             let colMap = { code: -1, unitNum: -1, area1: -1, area2: -1, size: -1, unitPrice: -1, price: -1, floor: -1, finish: -1, status: -1, buyer: -1 };
             let headerRowIdx = -1;
 
-            // محاولة البحث عن صف العناوين في أول 50 صف (زيادة النطاق لتفادي دمج الخلايا العلوية)
             for(let r=0; r < Math.min(rawData.length, 50); r++) {
                 let row = rawData[r];
                 if(!row || !Array.isArray(row)) continue;
@@ -1080,7 +1090,8 @@
 
                     if(cell.includes('كود') || cell.includes('الكود') || cell === 'code') { colMap.code = c; foundCode = true; confidenceScore++; }
                     else if(cell.includes('رقمالوحده') || cell.includes('رقم')) { colMap.unitNum = c; confidenceScore++; }
-                    else if(cell.includes('عماره') || cell.includes('عمارة') || cell.includes('منطقه')) { colMap.area1 = c; confidenceScore++; }
+                    else if(cell.includes('عماره') || cell.includes('عمارة') || cell === 'منطقه') { colMap.area1 = c; confidenceScore++; }
+                    else if(cell === 'منطقهرقم' || cell === 'م') { colMap.area2 = c; confidenceScore++; }
                     else if(cell.includes('مساحه') || cell.includes('مساحة')) { colMap.size = c; confidenceScore++; }
                     else if(cell.includes('سعرالمتر')) { colMap.unitPrice = c; confidenceScore++; }
                     else if(cell.includes('اجماليسعر') || (cell.includes('سعر') && !cell.includes('متر'))) { colMap.price = c; confidenceScore++; }
@@ -1090,24 +1101,20 @@
                     else if(cell.includes('مشتري') || cell.includes('عميل')) { colMap.buyer = c; confidenceScore++; }
                 }
                 
-                // إذا وجدنا الكلمة الصريحة أو على الأقل 3 أعمدة تدل على أنه صف العناوين
                 if(foundCode || confidenceScore >= 3) { headerRowIdx = r; break; }
             }
 
-            // الخطة "ب" المطلقة: لو فشل البحث، هنطبق خريطة ثابتة بناءً على شكل شيت حدائق الأهرام بتاعك بالظبط!
+            // الخطة "ب": لو فشل التعرف، نطبق الخريطة الثابتة للشيت المرفق بالمللي
             if(headerRowIdx === -1) {
-                console.log("الخطة ب: تطبيق الخريطة الثابتة للشيت");
-                // بناءً على ترتيب الأعمدة الثابت في الشيت المرفق في الصور
+                console.log("الخطة البديلة: تطبيق الخريطة الثابتة للشيت");
                 colMap = { code: 6, unitNum: 5, area1: 3, area2: 4, size: 8, unitPrice: 9, price: 10, floor: 2, finish: 14, status: 15, buyer: 18 };
                 
-                // البحث عن أول صف يحتوي فعلياً على بيانات في عمود الأكواد (عمود G أي اندكس 6)
                 for(let r=0; r < Math.min(rawData.length, 50); r++) {
                     if(rawData[r] && rawData[r][6] && String(rawData[r][6]).includes('-')) { 
-                        headerRowIdx = r - 1; // السطر اللي قبله هو العناوين
+                        headerRowIdx = r - 1; 
                         break;
                     }
                 }
-                // لو لسه مفيش، نبدأ من الصف رقم 1 احتياطي
                 if(headerRowIdx === -1) headerRowIdx = 0; 
             }
 
@@ -1131,9 +1138,10 @@
                 if(area2) bldArea += ' ' + area2;
                 if(!bldArea.trim()) bldArea = 'غير محدد';
 
-                let p = colMap.price > -1 ? Math.round(parseNum(row[colMap.price])) : 0;
-                let s = colMap.size > -1 ? parseNum(row[colMap.size]) : 0;
-                let up = colMap.unitPrice > -1 ? Math.round(parseNum(row[colMap.unitPrice])) : 0;
+                let p = colMap.price > -1 ? parsePrice(row[colMap.price]) : 0;
+                let s = colMap.size > -1 ? parseSize(row[colMap.size]) : 0;
+                let up = colMap.unitPrice > -1 ? parsePrice(row[colMap.unitPrice]) : 0;
+                
                 let flr = colMap.floor > -1 ? String(row[colMap.floor] || '').trim() : '-';
                 if(!flr) flr = '-';
                 let fin = colMap.finish > -1 ? String(row[colMap.finish] || '').trim() : 'طوب أحمر';
@@ -1215,11 +1223,12 @@
             if(btnText) btnText.innerText = "⏳ جاري سحب البيانات والتحليل...";
 
             try {
-                // مضاد كاش عنيف لإجبار جوجل على إرسال الداتا الجديدة
                 const fetchUrl = savedOnlineSheetUrl + (savedOnlineSheetUrl.includes('?') ? '&' : '?') + 'nocache=' + new Date().getTime();
                 const response = await fetch(fetchUrl, { cache: 'no-store' });
-                const data = await response.arrayBuffer();
-                const workbook = XLSX.read(new Uint8Array(data), {type:'array'});
+                
+                // السر هنا: قراءة الملف كنص (Text) مش كبايتات (Buffer) عشان العربي يظهر سليم 100%
+                const csvText = await response.text(); 
+                const workbook = XLSX.read(csvText, {type: 'string'});
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
                 const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
