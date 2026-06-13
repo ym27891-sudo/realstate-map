@@ -117,14 +117,12 @@
                 document.getElementById('loginSection').classList.add('hidden');
                 document.getElementById('appSection').classList.remove('hidden');
                 
-                // التحكم في الصلاحيات
                 document.getElementById('adminArea').classList.toggle('hidden', currentUserRole !== 'admin');
                 if(document.getElementById('adminResaleAdd')) document.getElementById('adminResaleAdd').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('usersControl').classList.toggle('hidden', currentUserRole !== 'admin');
                 document.getElementById('adminReportBtn').classList.toggle('hidden', currentUserRole !== 'admin');
                 if(document.getElementById('adminPaymentBtn')) document.getElementById('adminPaymentBtn').classList.toggle('hidden', currentUserRole !== 'admin');
 
-                // إظهار زر ماب الأدمن فقط وإخفاء زر السيلز، والعكس
                 if (currentUserRole === 'admin') {
                     if(document.getElementById('mapBtn')) document.getElementById('mapBtn').classList.add('hidden');
                     if(document.getElementById('adminMapEditBtn')) document.getElementById('adminMapEditBtn').classList.remove('hidden');
@@ -369,7 +367,10 @@
                 return;
             }
             const mapPageUrl = "map.html"; 
-            const finalLink = `${mapPageUrl}?sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}`;
+            // فتح الخريطة بتوكن السيلز للمعاينة فقط (لا يظهر شريط التعديل)
+            const params = { sn: window.currentAgentName, sp: currentAgentPhone, sw: currentAgentWhatsapp, mode: 'preview' };
+            const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(params))));
+            const finalLink = `${mapPageUrl}?v=${encoded}`;
             window.open(finalLink, '_blank');
         };
 
@@ -1029,7 +1030,6 @@
             }
         };
 
-        // --- جلب أنظمة السداد للقائمة المنسدلة ---
         window.populateCalculatorPlans = () => {
             const select = document.getElementById('preset_plans');
             if(!select) return;
@@ -1041,7 +1041,6 @@
             select.innerHTML = html;
         };
 
-        // --- تطبيق نظام السداد المختار أوتوماتيك ---
         window.applyPresetPlan = (planId) => {
             const totalInput = document.getElementById('m_total');
             const downPctInput = document.getElementById('m_down_pct');
@@ -1083,7 +1082,6 @@
             }
         };
 
-        // --- تحديث السعر الإجمالي لو السيلز غير سعر المتر يدوياً ---
         window.updateTotalFromUnitPrice = () => {
             let unitPrice = unformatMoney(cleanToEngNum(document.getElementById('m_unit_price').value));
             let size = parseFloat(document.getElementById('m_size').value) || 0;
@@ -1226,6 +1224,7 @@
             }
         };
 
+        // الدالة المعدلة للتشفير للحصول على لينك قصير وأنيق 
         window.generateAndSendToMap = () => {
             const code = document.getElementById('m_code').innerText;
             const area = document.getElementById('m_area').innerText || '';
@@ -1244,9 +1243,26 @@
             const monthlyNum = unformatMoney(cleanToEngNum(monthlyRaw));
             const downPct = totalNum > 0 ? Math.round((downNum / totalNum) * 100) : 0;
 
+            // بناء كائن البيانات
+            const linkData = {
+                sn: window.currentAgentName,
+                sp: currentAgentPhone,
+                sw: currentAgentWhatsapp,
+                c: code,
+                a: area,
+                t: totalNum,
+                d: downNum,
+                m: months,
+                mo: monthlyNum
+            };
+
+            // تشفير البيانات باستخدام Base64 المطور (يدعم اللغة العربية)
+            const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(linkData))));
+
             const mapPageUrl = "map.html"; 
             const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
-            const finalLink = `${baseUrl}/${mapPageUrl}?sales_name=${encodeURIComponent(window.currentAgentName)}&sales_phone=${currentAgentPhone}&sales_ws=${currentAgentWhatsapp}&code=${encodeURIComponent(code)}&area=${encodeURIComponent(area)}&total=${totalNum}&down=${downNum}&months=${months}&monthly=${monthlyNum}`;
+            // اللينك القصير والأنيق
+            const finalLink = `${baseUrl}/${mapPageUrl}?v=${encodedData}`;
             
             const message = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة:
 
@@ -1266,7 +1282,7 @@ ${finalLink}
 شركة عقاري اليوم تسعد بخدمتكم دائماً 🏢✨`;
 
             navigator.clipboard.writeText(message).then(() => {
-                alert("عاش يا بطل! 🚀\nتم توليد رسالة الواتساب باللينك الذكي للماب ونسخها في جهازك بنجاح.\nابعته للعميل فوراً على الواتساب!");
+                alert("عاش يا بطل! 🚀\nتم توليد رسالة الواتساب باللينك المشفر ونسخها بنجاح.\nابعته للعميل فوراً على الواتساب!");
                 document.getElementById('calcModal').style.display='none';
             }).catch(err => {
                 alert("تم توليد اللينك، انسخه من هنا:\n\n" + message);
@@ -1280,7 +1296,6 @@ ${finalLink}
             document.getElementById('m_code').innerText=c; 
             document.getElementById('m_area').innerText = area || ''; 
             
-            // حفظ القيم الأصلية
             document.getElementById('m_original_price').value = p;
             document.getElementById('m_total').value = formatMoney(p); 
             
@@ -1356,13 +1371,10 @@ ${finalLink}
             <div class="flex items-center gap-4 font-black flex-wrap justify-end">
                 <button id="adminReportBtn" onclick="toggleAdminReportModal()" class="hidden bg-blue-50 text-navy border border-navy/20 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-blue-100 transition">التقارير الإدارية 📊</button>
                 
-                <!-- زر إعدادات السداد للأدمن فقط (نقلناه هنا عشان ننضف الواجهة) -->
                 <button id="adminPaymentBtn" onclick="window.togglePaymentPlansModal()" class="hidden bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-purple-100 transition">أنظمة السداد ⚙️</button>
 
-                <!-- زر معاينة الخريطة للسيلز فقط -->
                 <button id="mapBtn" onclick="window.openMap()" class="hidden bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-indigo-100 transition">معاينة الخريطة 🗺️</button>
                 
-                <!-- زر تعديل الخريطة للأدمن فقط -->
                 <button id="adminMapEditBtn" onclick="window.open('map.html', '_blank')" class="hidden bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-xl text-xs font-black shadow-sm hover:bg-red-100 transition">تعديل الخريطة 🔧</button>
                 
                 <button onclick="toggleResaleMenu()" class="bg-slate-100 p-2 rounded-xl text-navy shadow-sm text-lg hover:bg-slate-200 transition">🏠</button>
@@ -1384,7 +1396,6 @@ ${finalLink}
         <div id="buildingTabs" class="flex gap-2 flex-wrap pb-4 mb-4 border-b border-slate-100 font-black italic uppercase"></div>
 
         <div id="usersControl" class="hidden font-black italic uppercase">
-            <!-- لوحة التحكم للفرق -->
             <div class="bg-white p-4 rounded-2xl shadow-md border-r-4 border-slate-400 mb-4">
                 <div class="flex justify-between items-center cursor-pointer font-black" onclick="toggleUsersList()">
                     <h3 class="text-xs font-black text-slate-700 italic">إدارة الفريق وهيكلة الفريق (Teams) 🛡️:</h3>
@@ -1464,7 +1475,7 @@ ${finalLink}
         </div>
     </div>
 
-    <!-- مودال أنظمة السداد للأدمن (التصميم الجديد المخفي) -->
+    <!-- مودال أنظمة السداد للأدمن -->
     <div id="paymentPlansModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm items-center justify-center p-4 z-[10012]">
         <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-lg border-t-8 border-purple-600 modal-animate text-right font-black">
             <div class="flex justify-between items-center border-b pb-3 mb-4">
