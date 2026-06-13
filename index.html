@@ -989,6 +989,115 @@
             window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
         };
 
+        // دالة المٌحلل الذكي المشتركة لمعالجة الداتا بمسطرة واحدة
+        const processSheetData = async (j) => {
+            let batches = [];
+            let currentBatch = writeBatch(db);
+            let operationCount = 0;
+            let addedCount = 0;
+            let updatedCount = 0;
+
+            // توحيد الحروف ومسح المسافات والسطور المخفية
+            const normalizeKey = (str) => {
+                return str.replace(/[\r\n\s_]+/g, '')
+                          .replace(/[أإآا]/g, 'ا')
+                          .replace(/[ةه]/g, 'ه')
+                          .replace(/[يى]/g, 'ي');
+            };
+
+            for(let i of j) {
+                let rowClean = {};
+                for(let key in i) {
+                    rowClean[normalizeKey(key)] = i[key];
+                }
+
+                const rawCode = String(rowClean['كودالوحده'] || rowClean['الكود'] || rowClean['code'] || '').trim();
+                if(!rawCode) continue;
+
+                const p = unformatMoney(cleanToEngNum(rowClean['اجماليسعرالوحده'] || rowClean['اجماليسعر'] || rowClean['السعر'] || rowClean['price'] || 0));
+                const s = unformatMoney(cleanToEngNum(rowClean['مساحهالوحده'] || rowClean['المساحه'] || rowClean['size'] || 0));
+                const up = unformatMoney(cleanToEngNum(rowClean['سعرالمتر'] || rowClean['unitprice'] || 0));
+                
+                let bldArea = String(rowClean['العماره'] || rowClean['area'] || '');
+                if (!bldArea && rowClean['رقمالعماره']) {
+                    bldArea = String(rowClean['رقمالعماره']) + (rowClean['م'] ? ' ' + String(rowClean['م']).replace(/[()]/g, '') : '');
+                }
+
+                const flr = String(rowClean['اسمالدوربيعي'] || rowClean['اسمالدورفيالرخصه'] || rowClean['الدور'] || rowClean['floor'] || '-');
+                const fin = String(rowClean['نوعالتشطيب'] || rowClean['التشطيب'] || rowClean['finish'] || 'طوب أحمر');
+
+                let rawStatKey = Object.keys(rowClean).find(k => k.includes('حالهالوحده') || k.includes('حاله')) || 'status';
+                let rawStat = String(rowClean[rawStatKey] || 'متاح').toLowerCase().trim();
+                
+                let finalStatus = 'متاح';
+                if (rawStat.includes('غيرمتاح') || rawStat.includes('محجوز') || rawStat.includes('حجز') || rawStat.includes('مغلق') || rawStat.includes('هولد')) {
+                    finalStatus = 'تم الحجز';
+                } else if ((rawStat.includes('تعاقد') || rawStat.includes('مباع') || rawStat.includes('بيع')) && !rawStat.includes('متاح')) {
+                    finalStatus = 'تم البيع';
+                }
+
+                const buyer = finalStatus !== 'متاح' ? String(rowClean['اسمالعميل'] || rowClean['buyername'] || '') : '';
+
+                const existingProp = dataStore.find(prop => prop.code === rawCode);
+
+                if (existingProp) {
+                    const docRef = doc(db, 'properties', existingProp.id);
+                    
+                    let statusToSave = existingProp.status;
+                    if (existingProp.status === 'متاح' && finalStatus !== 'متاح') {
+                        statusToSave = finalStatus;
+                    }
+
+                    currentBatch.update(docRef, {
+                        area: bldArea || existingProp.area,
+                        size: s > 0 ? s : existingProp.size,
+                        floor: flr !== '-' ? flr : existingProp.floor,
+                        price: p > 0 ? p : existingProp.price,
+                        unitPrice: up > 0 ? up : existingProp.unitPrice,
+                        finish: fin !== 'طوب أحمر' ? fin : existingProp.finish,
+                        status: statusToSave,
+                        buyerName: existingProp.buyerName || buyer
+                    });
+                    updatedCount++;
+                } else {
+                    const newDocRef = doc(collection(db, 'properties'));
+                    currentBatch.set(newDocRef, {
+                        code: rawCode,
+                        area: bldArea || 'غير محدد',
+                        size: s,
+                        floor: flr,
+                        price: p,
+                        unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0),
+                        finish: fin,
+                        status: finalStatus,
+                        buyerName: buyer,
+                        salesName: '',
+                        statusDate: '',
+                        teamName: '',
+                        commissionSource: '',
+                        salesComm: 0,
+                        tlComm: 0,
+                        sharedFirstPct: 50,
+                        time: serverTimestamp()
+                    });
+                    addedCount++;
+                }
+
+                operationCount++;
+                if (operationCount % 450 === 0) {
+                    batches.push(currentBatch);
+                    currentBatch = writeBatch(db);
+                }
+            }
+
+            batches.push(currentBatch);
+            for (let b of batches) {
+                await b.commit();
+            }
+
+            return { addedCount, updatedCount };
+        };
+
         window.syncFromOnlineSheet = async () => {
             if (!savedOnlineSheetUrl) {
                 alert("لازم تحط لينك الـ CSV في الخانة المخصصة وتدوس 'حفظ اللينك' الأول!");
@@ -1015,108 +1124,43 @@
                 }
 
                 const j = XLSX.utils.sheet_to_json(sheet, {range: headerRowIndex});
+                
+                const res = await processSheetData(j);
 
-                let batches = [];
-                let currentBatch = writeBatch(db);
-                let operationCount = 0;
-                let addedCount = 0;
-                let updatedCount = 0;
-
-                for(let i of j) {
-                    const rawCode = String(i['كود الوحدة'] || i['الكود'] || i.code || i.Code || '').trim();
-                    if(!rawCode) continue;
-
-                    const p = unformatMoney(cleanToEngNum(i['إجمالي سعر الوحدة'] || i['السعر'] || i.price || i.Price || 0));
-                    const s = unformatMoney(cleanToEngNum(i['مساحة الوحدة'] || i['المساحة'] || i.size || i.Size || 0));
-                    const up = unformatMoney(cleanToEngNum(i['سعر المتر'] || i['unitPrice'] || i.UnitPrice || 0));
-                    
-                    let bldArea = String(i['العمارة'] || i.area || i.Area || '');
-                    if (!bldArea && i['رقم العمارة']) {
-                        bldArea = String(i['رقم العمارة']) + (i['م'] ? ' ' + String(i['م']).replace(/[()]/g, '') : '');
-                    }
-
-                    const flr = String(i['اسم الدور بيعي'] || i['اسم الدور في الرخصة'] || i['الدور'] || i.floor || i.Floor || '-');
-                    const fin = String(i['نوع التشطيب'] || i['التشطيب'] || i.finish || i.Finish || 'طوب أحمر');
-
-                    let rawStat = String(i['حالة الوحدة (متاح للبيع / محجوز / مباع / مغلق)'] || i['حالة الوحدة'] || i.status || 'متاح').toLowerCase().trim();
-                    let finalStatus = 'متاح';
-
-                    if (rawStat.includes('غير متاح') || rawStat.includes('محجوز') || rawStat.includes('حجز') || rawStat.includes('مغلق') || rawStat.includes('هولد')) {
-                        finalStatus = 'تم الحجز';
-                    } 
-                    else if ((rawStat.includes('تعاقد') || rawStat.includes('مباع') || rawStat.includes('بيع')) && !rawStat.includes('متاح')) {
-                        finalStatus = 'تم البيع';
-                    } 
-                    else {
-                        finalStatus = 'متاح';
-                    }
-
-                    const buyer = finalStatus !== 'متاح' ? String(i['اسم العميل'] || i.buyerName || '') : '';
-
-                    const existingProp = dataStore.find(prop => prop.code === rawCode);
-
-                    if (existingProp) {
-                        const docRef = doc(db, 'properties', existingProp.id);
-                        
-                        let statusToSave = existingProp.status;
-                        if (existingProp.status === 'متاح' && finalStatus !== 'متاح') {
-                            statusToSave = finalStatus;
-                        }
-
-                        currentBatch.update(docRef, {
-                            area: bldArea || existingProp.area,
-                            size: s > 0 ? s : existingProp.size,
-                            floor: flr !== '-' ? flr : existingProp.floor,
-                            price: p > 0 ? p : existingProp.price,
-                            unitPrice: up > 0 ? up : existingProp.unitPrice,
-                            finish: fin !== 'طوب أحمر' ? fin : existingProp.finish,
-                            status: statusToSave,
-                            buyerName: existingProp.buyerName || buyer
-                        });
-                        updatedCount++;
-                    } else {
-                        const newDocRef = doc(collection(db, 'properties'));
-                        currentBatch.set(newDocRef, {
-                            code: rawCode,
-                            area: bldArea || 'غير محدد',
-                            size: s,
-                            floor: flr,
-                            price: p,
-                            unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0),
-                            finish: fin,
-                            status: finalStatus,
-                            buyerName: buyer,
-                            salesName: '',
-                            statusDate: '',
-                            teamName: '',
-                            commissionSource: '',
-                            salesComm: 0,
-                            tlComm: 0,
-                            sharedFirstPct: 50,
-                            time: serverTimestamp()
-                        });
-                        addedCount++;
-                    }
-
-                    operationCount++;
-                    if (operationCount % 450 === 0) {
-                        batches.push(currentBatch);
-                        currentBatch = writeBatch(db);
-                    }
-                }
-
-                batches.push(currentBatch);
-                for (let b of batches) {
-                    await b.commit();
-                }
-
-                alert(`تم سحب البيانات بذكاء يا بطل! 🚀\nجديد: ${addedCount} وحدة.\nتحديث: ${updatedCount} وحدة.\n(السيستم عمل حسابه في الوحدات الـ Hold وحماها).`);
+                alert(`تم سحب البيانات وتحديث الأسعار بذكاء! 🚀\nجديد: ${res.addedCount} وحدة.\nتحديث: ${res.updatedCount} وحدة.`);
                 if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
                 
             } catch (error) {
                 alert("حصل عطل، اتأكد إنك حاطط لينك الـ CSV السليم بتاع Publish to web. العطل: " + error.message);
                 if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
             }
+        };
+
+        window.importExcel = (e) => {
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const workbook = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                    const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                    let headerRowIndex = 0;
+                    
+                    for (let r = 0; r < rawData.length; r++) {
+                        if (rawData[r].some(cell => typeof cell === 'string' && (cell.includes('كود') || cell.includes('الكود') || cell.toLowerCase() === 'code'))) {
+                            headerRowIndex = r;
+                            break;
+                        }
+                    }
+
+                    const j = XLSX.utils.sheet_to_json(sheet, {range: headerRowIndex});
+                    const res = await processSheetData(j);
+                    alert(`تم رفع الملف وتحديث الأسعار بنجاح! 🚀\nجديد: ${res.addedCount} وحدة.\nتحديث: ${res.updatedCount} وحدة.`);
+                } catch(error) {
+                    alert("حصل عطل، اتأكد من الملف المرفوع. العطل: " + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
         };
 
         window.addProp = async (e) => {
@@ -1619,6 +1663,7 @@
         <button id="commToggleBtn" onclick="toggleCommView()" class="hidden bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-black mb-4 shadow-lg hover:bg-navy transition font-black italic uppercase">🏢 عرض التجاري</button>
 
         <div id="adminArea" class="hidden mb-6 space-y-3 font-black">
+            <!-- قسم ربط جوجل شيت الأونلاين -->
             <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 shadow-sm mb-2">
                 <label class="text-[10px] text-indigo-800 block mb-2 font-black uppercase">🔗 لينك مزامنة جوجل شيت الأونلاين (بصيغة CSV):</label>
                 <div class="flex gap-2">
@@ -1629,6 +1674,14 @@
                     <span id="syncBtnText" class="text-[11px] font-black italic uppercase tracking-widest">☁️ مزامنة الداتا وسحب التحديثات الآن</span>
                 </button>
             </div>
+
+             <!-- زرار الرفع اليدوي شغال بنفس الذكاء -->
+             <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center shadow-sm hover:bg-slate-50 transition">
+                <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest flex justify-center items-center gap-2">
+                    📁 رفع شيت إكسيل يدوي (Bulk Upload)
+                    <input type="file" accept=".xlsx, .xls" onchange="importExcel(event)" class="hidden">
+                </label>
+             </div>
 
              <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-sm grid grid-cols-2 md:grid-cols-7 gap-3 items-end border border-slate-100 font-black italic uppercase">
                 <input id="c" placeholder="كود" class="border border-slate-200 p-2.5 rounded-xl bg-slate-50 text-xs font-black outline-none focus:border-navy italic" required>
@@ -1872,6 +1925,7 @@
         </div>
     </div>
 
+    <!-- الآلة الحاسبة و تجهيز الرسالة -->
     <div id="calcModal" style="display:none;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[10001] font-black uppercase italic">
         <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md relative border-t-8 border-navy p-4 sm:p-5 text-right font-black max-h-[95vh] flex flex-col">
             <button onclick="document.getElementById('calcModal').style.display='none'" class="absolute top-2 right-4 text-slate-300 text-xl font-bold transition hover:text-red-500 font-black z-10">×</button>
@@ -1881,6 +1935,7 @@
 
             <div class="overflow-y-auto scrollbar-hide flex-1 pr-1 space-y-3.5 font-black italic text-right pb-2">
                 
+                <!-- القسم الجديد: اختيار الأنظمة للرسالة (Checkboxes) -->
                 <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
                     <label class="text-[11px] text-navy block mb-2 font-black border-b border-slate-200 pb-1 flex items-center gap-1">
                         💳 حدد الأنظمة لإضافتها في رسالة العميل:
