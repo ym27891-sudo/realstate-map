@@ -997,12 +997,27 @@
             let addedCount = 0;
             let updatedCount = 0;
 
-            // توحيد الحروف ومسح المسافات والسطور المخفية
             const normalizeKey = (str) => {
                 return str.replace(/[\r\n\s_]+/g, '')
                           .replace(/[أإآا]/g, 'ا')
                           .replace(/[ةه]/g, 'ه')
                           .replace(/[يى]/g, 'ي');
+            };
+
+            const parseSafePrice = (val) => {
+                if(typeof val === 'number') return Math.round(val);
+                if(!val) return 0;
+                let s = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+                s = s.replace(/[^0-9]/g, ''); // بيشيل النقط والفواصل
+                return parseInt(s) || 0;
+            };
+
+            const parseSafeSize = (val) => {
+                if(typeof val === 'number') return val;
+                if(!val) return 0;
+                let s = String(val).replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 1776);
+                s = s.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+                return parseFloat(s) || 0;
             };
 
             for(let i of j) {
@@ -1014,13 +1029,22 @@
                 const rawCode = String(rowClean['كودالوحده'] || rowClean['الكود'] || rowClean['code'] || '').trim();
                 if(!rawCode) continue;
 
-                const p = unformatMoney(cleanToEngNum(rowClean['اجماليسعرالوحده'] || rowClean['اجماليسعر'] || rowClean['السعر'] || rowClean['price'] || 0));
-                const s = unformatMoney(cleanToEngNum(rowClean['مساحهالوحده'] || rowClean['المساحه'] || rowClean['size'] || 0));
-                const up = unformatMoney(cleanToEngNum(rowClean['سعرالمتر'] || rowClean['unitprice'] || 0));
+                // البحث عن مفتاح السعر بمرونة أكبر (أي عمود بيحتوي على إجمالي السعر)
+                let priceKey = Object.keys(rowClean).find(k => k.includes('اجماليسعر')) || 'السعر';
+                const p = parseSafePrice(rowClean[priceKey] || rowClean['السعر'] || rowClean['price']);
                 
-                let bldArea = String(rowClean['العماره'] || rowClean['area'] || '');
-                if (!bldArea && rowClean['رقمالعماره']) {
+                let sizeKey = Object.keys(rowClean).find(k => k.includes('مساحه')) || 'المساحه';
+                const s = parseSafeSize(rowClean[sizeKey] || rowClean['size']);
+                
+                let upKey = Object.keys(rowClean).find(k => k.includes('سعرالمتر')) || 'سعرالمتر';
+                const up = parseSafePrice(rowClean[upKey] || rowClean['unitprice']);
+                
+                let bldArea = '';
+                if (rowClean['رقمالعماره']) {
                     bldArea = String(rowClean['رقمالعماره']) + (rowClean['م'] ? ' ' + String(rowClean['م']).replace(/[()]/g, '') : '');
+                } else {
+                    let bldAreaKey = Object.keys(rowClean).find(k => k.includes('العماره') || k.includes('مشروع')) || 'area';
+                    bldArea = String(rowClean[bldAreaKey] || '');
                 }
 
                 const flr = String(rowClean['اسمالدوربيعي'] || rowClean['اسمالدورفيالرخصه'] || rowClean['الدور'] || rowClean['floor'] || '-');
@@ -1042,22 +1066,24 @@
 
                 if (existingProp) {
                     const docRef = doc(db, 'properties', existingProp.id);
-                    
                     let statusToSave = existingProp.status;
                     if (existingProp.status === 'متاح' && finalStatus !== 'متاح') {
                         statusToSave = finalStatus;
                     }
 
-                    currentBatch.update(docRef, {
+                    // لا نحدث السعر إلا لو كان أكبر من 0 عشان منبوظش الداتا بالغلط
+                    let updateData = {
                         area: bldArea || existingProp.area,
-                        size: s > 0 ? s : existingProp.size,
                         floor: flr !== '-' ? flr : existingProp.floor,
-                        price: p > 0 ? p : existingProp.price,
-                        unitPrice: up > 0 ? up : existingProp.unitPrice,
                         finish: fin !== 'طوب أحمر' ? fin : existingProp.finish,
                         status: statusToSave,
                         buyerName: existingProp.buyerName || buyer
-                    });
+                    };
+                    if (p > 0) updateData.price = p;
+                    if (s > 0) updateData.size = s;
+                    if (up > 0) updateData.unitPrice = up;
+
+                    currentBatch.update(docRef, updateData);
                     updatedCount++;
                 } else {
                     const newDocRef = doc(collection(db, 'properties'));
