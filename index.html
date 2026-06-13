@@ -73,6 +73,7 @@
         let currentActiveReportTeamId = ""; 
         let loggedInUserDocId = "";
         let currentEditingPropId = "";
+        let savedOnlineSheetUrl = "";
         
         let paymentPlansStore = [];
         let cashDiscountStore = 5; 
@@ -144,6 +145,14 @@
         function initAppListeners() {
             onSnapshot(doc(db, 'settings', 'buildingOrder'), (snap) => { if(snap.exists()) buildingOrder = snap.data().order || []; renderTabs(); });
             
+            onSnapshot(doc(db, 'settings', 'onlineSheet'), (snap) => {
+                if(snap.exists()) {
+                    savedOnlineSheetUrl = snap.data().url || "";
+                    const input = document.getElementById('adminSheetUrlInput');
+                    if(input) input.value = savedOnlineSheetUrl;
+                }
+            });
+
             onSnapshot(doc(db, 'settings', 'paymentPlans'), (snap) => { 
                 if(snap.exists()) {
                     paymentPlansStore = snap.data().plans || []; 
@@ -968,20 +977,146 @@
             }); 
         };
 
-        window.importExcel = (e) => {
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const j = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).Sheets[XLSX.read(new Uint8Array(ev.target.result), {type:'array'}).SheetNames[0]]);
-                for(let i of j) {
-                    const p = unformatMoney(cleanToEngNum(i.price || i.Price || i['السعر'] || i['price '] || 0));
-                    const s = unformatMoney(cleanToEngNum(i.size || i.Size || i['المساحة'] || i['size '] || 0));
-                    const up = unformatMoney(cleanToEngNum(i.unitPrice || i.UnitPrice || i['سعر المتر'] || i['unitPrice '] || 0));
-                    await addDoc(collection(db, 'properties'), { code: String(i.code||i.Code||i['الكود']||''), area: String(i.area||i.Area||i['العمارة']||''), size: s, floor: String(i.floor||i.Floor||i['الدور']||'-'), price: p, unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0), finish: String(i.finish||i.Finish||i['التشطيب']||'طوب أحمر'), status: 'متاح', time: serverTimestamp(), sharedFirstPct: 50 });
+        window.saveOnlineSheetUrl = async () => {
+            const url = document.getElementById('adminSheetUrlInput').value.trim();
+            if (!url || !url.startsWith("http")) {
+                alert("برجاء إدخال لينك صحيح يبدأ بـ http يا فنان!");
+                return;
+            }
+            await setDoc(doc(db, 'settings', 'onlineSheet'), { url: url });
+            savedOnlineSheetUrl = url;
+            alert("تم حفظ لينك الشيت بنجاح! وتقدر تعمل مزامنة دلوقتي 🚀");
+            window.addLog("تم تحديث لينك الشيت الأونلاين للشركة.");
+        };
+
+        window.syncFromOnlineSheet = async () => {
+            if (!savedOnlineSheetUrl) {
+                alert("لازم تحط لينك الـ CSV في الخانة المخصصة وتدوس 'حفظ اللينك' الأول!");
+                return;
+            }
+
+            const btnText = document.getElementById('syncBtnText');
+            if(btnText) btnText.innerText = "⏳ جاري سحب البيانات والتحليل...";
+
+            try {
+                const response = await fetch(savedOnlineSheetUrl);
+                const data = await response.arrayBuffer();
+                const workbook = XLSX.read(new Uint8Array(data), {type:'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                const rawData = XLSX.utils.sheet_to_json(sheet, {header: 1});
+                let headerRowIndex = 0;
+                
+                for (let r = 0; r < rawData.length; r++) {
+                    if (rawData[r].some(cell => typeof cell === 'string' && (cell.includes('كود') || cell.includes('الكود') || cell.toLowerCase() === 'code'))) {
+                        headerRowIndex = r;
+                        break;
+                    }
                 }
-                alert("تم الاستيراد بنجاح");
-                location.reload();
-            };
-            reader.readAsArrayBuffer(e.target.files[0]);
+
+                const j = XLSX.utils.sheet_to_json(sheet, {range: headerRowIndex});
+
+                let batches = [];
+                let currentBatch = writeBatch(db);
+                let operationCount = 0;
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                for(let i of j) {
+                    const rawCode = String(i['كود الوحدة'] || i['الكود'] || i.code || i.Code || '').trim();
+                    if(!rawCode) continue;
+
+                    const p = unformatMoney(cleanToEngNum(i['إجمالي سعر الوحدة'] || i['السعر'] || i.price || i.Price || 0));
+                    const s = unformatMoney(cleanToEngNum(i['مساحة الوحدة'] || i['المساحة'] || i.size || i.Size || 0));
+                    const up = unformatMoney(cleanToEngNum(i['سعر المتر'] || i['unitPrice'] || i.UnitPrice || 0));
+                    
+                    let bldArea = String(i['العمارة'] || i.area || i.Area || '');
+                    if (!bldArea && i['رقم العمارة']) {
+                        bldArea = String(i['رقم العمارة']) + (i['م'] ? ' ' + String(i['م']).replace(/[()]/g, '') : '');
+                    }
+
+                    const flr = String(i['اسم الدور بيعي'] || i['اسم الدور في الرخصة'] || i['الدور'] || i.floor || i.Floor || '-');
+                    const fin = String(i['نوع التشطيب'] || i['التشطيب'] || i.finish || i.Finish || 'طوب أحمر');
+
+                    let rawStat = String(i['حالة الوحدة (متاح للبيع / محجوز / مباع / مغلق)'] || i['حالة الوحدة'] || i.status || 'متاح').toLowerCase().trim();
+                    let finalStatus = 'متاح';
+
+                    if (rawStat.includes('غير متاح') || rawStat.includes('محجوز') || rawStat.includes('حجز') || rawStat.includes('مغلق') || rawStat.includes('هولد')) {
+                        finalStatus = 'تم الحجز';
+                    } 
+                    else if ((rawStat.includes('تعاقد') || rawStat.includes('مباع') || rawStat.includes('بيع')) && !rawStat.includes('متاح')) {
+                        finalStatus = 'تم البيع';
+                    } 
+                    else {
+                        finalStatus = 'متاح';
+                    }
+
+                    const buyer = finalStatus !== 'متاح' ? String(i['اسم العميل'] || i.buyerName || '') : '';
+
+                    const existingProp = dataStore.find(prop => prop.code === rawCode);
+
+                    if (existingProp) {
+                        const docRef = doc(db, 'properties', existingProp.id);
+                        
+                        let statusToSave = existingProp.status;
+                        if (existingProp.status === 'متاح' && finalStatus !== 'متاح') {
+                            statusToSave = finalStatus;
+                        }
+
+                        currentBatch.update(docRef, {
+                            area: bldArea || existingProp.area,
+                            size: s > 0 ? s : existingProp.size,
+                            floor: flr !== '-' ? flr : existingProp.floor,
+                            price: p > 0 ? p : existingProp.price,
+                            unitPrice: up > 0 ? up : existingProp.unitPrice,
+                            finish: fin !== 'طوب أحمر' ? fin : existingProp.finish,
+                            status: statusToSave,
+                            buyerName: existingProp.buyerName || buyer
+                        });
+                        updatedCount++;
+                    } else {
+                        const newDocRef = doc(collection(db, 'properties'));
+                        currentBatch.set(newDocRef, {
+                            code: rawCode,
+                            area: bldArea || 'غير محدد',
+                            size: s,
+                            floor: flr,
+                            price: p,
+                            unitPrice: up > 0 ? up : (s > 0 ? Math.round(p / s) : 0),
+                            finish: fin,
+                            status: finalStatus,
+                            buyerName: buyer,
+                            salesName: '',
+                            statusDate: '',
+                            teamName: '',
+                            commissionSource: '',
+                            salesComm: 0,
+                            tlComm: 0,
+                            sharedFirstPct: 50,
+                            time: serverTimestamp()
+                        });
+                        addedCount++;
+                    }
+
+                    operationCount++;
+                    if (operationCount % 450 === 0) {
+                        batches.push(currentBatch);
+                        currentBatch = writeBatch(db);
+                    }
+                }
+
+                batches.push(currentBatch);
+                for (let b of batches) {
+                    await b.commit();
+                }
+
+                alert(`تم سحب البيانات بذكاء يا بطل! 🚀\nجديد: ${addedCount} وحدة.\nتحديث: ${updatedCount} وحدة.\n(السيستم عمل حسابه في الوحدات الـ Hold وحماها).`);
+                if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
+                
+            } catch (error) {
+                alert("حصل عطل، اتأكد إنك حاطط لينك الـ CSV السليم بتاع Publish to web. العطل: " + error.message);
+                if(btnText) btnText.innerText = "☁️ مزامنة الداتا وسحب التحديثات الآن";
+            }
         };
 
         window.addProp = async (e) => {
@@ -1258,17 +1393,14 @@
             const floor = prop.floor || '-';
             const finish = prop.finish || '-';
 
-            // تجميع كل الأنظمة اللي السيلز معلم عليها
             const checkboxes = document.querySelectorAll('.plan-checkbox:checked');
             let selectedPlans = Array.from(checkboxes).map(cb => cb.value);
 
-            // تجهيز داتا اللينك عشان العميل يشوف الخريطة
             let totalNumForMap = unformatMoney(cleanToEngNum(document.getElementById('m_total').value));
             let downNumForMap = unformatMoney(cleanToEngNum(document.getElementById('m_down').value));
             let monthsForMap = document.getElementById('m_months').value || "0";
             let monthlyForMap = unformatMoney(cleanToEngNum(document.getElementById('res_monthly_input').value));
 
-            // لو المدخلات اليدوية فاضية بس هو اختار نظام، ناخد أول نظام اخترناه نعرضه في الخريطة كـ Preview
             if(totalNumForMap === 0 && selectedPlans.length > 0) {
                totalNumForMap = origPrice;
                if(selectedPlans[0] === 'cash') {
@@ -1303,7 +1435,6 @@
             const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '');
             const finalLink = `${baseUrl}/${mapPageUrl}?v=${encodedData}`;
 
-            // تصميم الرسالة الإبداعية
             let message = `مساء الخير يا فندم، بناءً على تواصلنا، ده تفاصيل وعرض السعر الخاص بالوحدة السكنية المميزة بحدائق الأهرام 🌟:\n\n📌 الكود: ${code}\n📍 العمارة/المنطقة: ${area}\n📐 المساحة: ${size} متر\n🏢 الدور: ${floor}\n✨ التشطيب: ${finish}\n\n💰 السعر الإجمالي: ${formatMoney(origPrice)} جنيهاً\n`;
 
             if (selectedPlans.length > 0) {
@@ -1323,7 +1454,6 @@
                     }
                 });
             } else {
-                // لو مش مختار من السريعة، ناخد اللي مكتوب بايده في الحاسبة
                 const totalManual = unformatMoney(cleanToEngNum(document.getElementById('m_total').value));
                 const downManual = unformatMoney(cleanToEngNum(document.getElementById('m_down').value));
                 const monthsManual = document.getElementById('m_months').value || "0";
@@ -1368,7 +1498,6 @@
             document.getElementById('res_monthly_input').value='';
             document.getElementById('preset_plans').value='';
             
-            // تصفير الاختيارات مع كل فتحة جديدة
             const checkboxes = document.querySelectorAll('.plan-checkbox');
             checkboxes.forEach(cb => cb.checked = false);
 
@@ -1490,12 +1619,17 @@
         <button id="commToggleBtn" onclick="toggleCommView()" class="hidden bg-slate-700 text-white px-6 py-2 rounded-xl text-xs font-black mb-4 shadow-lg hover:bg-navy transition font-black italic uppercase">🏢 عرض التجاري</button>
 
         <div id="adminArea" class="hidden mb-6 space-y-3 font-black">
-             <div class="bg-white p-4 rounded-2xl border-2 border-dashed border-navy/20 text-center shadow-sm hover:bg-slate-50 transition">
-                <label class="cursor-pointer text-navy text-[10px] font-black italic uppercase tracking-widest flex justify-center items-center gap-2">
-                    📁 رفع شيت إكسيل (Bulk Upload)
-                    <input type="file" accept=".xlsx, .xls" onchange="importExcel(event)" class="hidden">
-                </label>
-             </div>
+            <div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 shadow-sm mb-2">
+                <label class="text-[10px] text-indigo-800 block mb-2 font-black uppercase">🔗 لينك مزامنة جوجل شيت الأونلاين (بصيغة CSV):</label>
+                <div class="flex gap-2">
+                    <input id="adminSheetUrlInput" type="url" placeholder="ضع لينك الـ CSV هنا..." class="flex-1 border border-indigo-200 p-2.5 rounded-xl text-xs outline-none focus:border-indigo-500 font-bold text-left" dir="ltr">
+                    <button type="button" onclick="window.saveOnlineSheetUrl()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-black shadow-md transition whitespace-nowrap">حفظ اللينك 💾</button>
+                </div>
+                <button type="button" onclick="window.syncFromOnlineSheet()" class="w-full mt-3 bg-white border-2 border-dashed border-indigo-300 text-indigo-700 p-3 rounded-xl text-center shadow-sm hover:bg-indigo-100 transition flex justify-center items-center gap-2 cursor-pointer outline-none">
+                    <span id="syncBtnText" class="text-[11px] font-black italic uppercase tracking-widest">☁️ مزامنة الداتا وسحب التحديثات الآن</span>
+                </button>
+            </div>
+
              <form onsubmit="window.addProp(event)" class="bg-white p-6 rounded-2xl shadow-sm grid grid-cols-2 md:grid-cols-7 gap-3 items-end border border-slate-100 font-black italic uppercase">
                 <input id="c" placeholder="كود" class="border border-slate-200 p-2.5 rounded-xl bg-slate-50 text-xs font-black outline-none focus:border-navy italic" required>
                 <input id="a" placeholder="عمارة" class="border border-slate-200 p-2.5 rounded-xl bg-slate-50 text-xs font-black outline-none focus:border-navy italic" required>
